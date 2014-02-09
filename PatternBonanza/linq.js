@@ -1,7 +1,3 @@
-Array.prototype.asEnumerable = function () {
-    return new EnumerableArray(this);
-};
-
 var EnumerableArray = (function () {
     function EnumerableArray(arr) {
         if (arr) {
@@ -29,7 +25,7 @@ var EnumerableArray = (function () {
             }
         }
 
-        return result.asEnumerable();
+        return null;
     };
 
     EnumerableArray.prototype.first = function (predicate) {

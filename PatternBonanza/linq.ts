@@ -1,15 +1,7 @@
-Array.prototype.asEnumerable = function <T>() {
-    return new EnumerableArray<T>(this);
-};
-
-interface Array<T> {
-    asEnumerable: () => IEnumerable<T>;
-}
-
 interface IEnumerable<T> {
-    getEnumerator: () => IEnumerator<T>;
-    where: (predicate: IPredicate<T>) => IEnumerable<T>;
-    first: (predicate?: IPredicate<T>) => T;
+    getEnumerator: ()=> IEnumerator<T>;
+    where: (predicate: IPredicate<T>)=> IEnumerable<T>;
+    first: (predicate?: IPredicate<T>)=> T;
 }
 
 interface IPredicate<T> {
@@ -20,7 +12,7 @@ class EnumerableArray<T> implements IEnumerable<T> {
     public storage: T[];
 
     public getEnumerator(): IEnumerator<T> {
-        return new ArrayEnumerator((i) => this.storage[i]);
+        return new ArrayEnumerator((i)=> this.storage[i]);
     }
 
     public where(predicate: IPredicate<T>): IEnumerable<T> {
@@ -35,7 +27,7 @@ class EnumerableArray<T> implements IEnumerable<T> {
             }
         }
 
-        return result.asEnumerable();
+        return null;
     }
 
     public first(predicate?: IPredicate<T>): T {
@@ -56,7 +48,6 @@ class EnumerableArray<T> implements IEnumerable<T> {
     }
 
 
-
     constructor(arr?: T[]) {
         if (arr) {
             this.storage = arr;
@@ -64,18 +55,19 @@ class EnumerableArray<T> implements IEnumerable<T> {
             this.storage = new Array<T>();
         }
     }
+
 }
 
 interface IEnumerator<T> {
     current: T;
-    next: () => T;
-    reset: () => void;
+    next: ()=> T;
+    reset: ()=> void;
 }
 
 class ArrayEnumerator<T> implements IEnumerator<T> {
 
     private currentIndex: number;
-    private accessor: (index: number) => T;
+    private accessor: (index: number)=> T;
 
     get current(): T {
         return this.accessor(this.currentIndex);
@@ -96,7 +88,7 @@ class ArrayEnumerator<T> implements IEnumerator<T> {
         this.currentIndex = 0;
     }
 
-    constructor(accessor: (index: number) => T) {
+    constructor(accessor: (index: number)=> T) {
         this.currentIndex = 0;
         this.accessor = accessor;
     }
@@ -105,7 +97,7 @@ class ArrayEnumerator<T> implements IEnumerator<T> {
 
 interface IList<T> {
     count: number;
-    add: (item: T) => void;
-    get: (index: number) => T;
-    remove: (index: number) => void;
+    add: (item: T)=> void;
+    get: (index: number)=> T;
+    remove: (index: number)=> void;
 }

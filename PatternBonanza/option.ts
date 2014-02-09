@@ -41,7 +41,7 @@ class Opt<T> implements IOpt<T> {
     get value(): T {
         return this.hasValue
             ? this.valueStore
-            : (this.otherwise
+            : (this.otherwiseFunc
             ? this.otherwiseFunc()
             : this.valueStore);
     }
