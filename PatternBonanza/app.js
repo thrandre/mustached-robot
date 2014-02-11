@@ -1,3 +1,4 @@
+console.log("Test.");
 var EnumerableArray = (function () {
     function EnumerableArray(arr) {
         if (arr) {
@@ -76,9 +77,6 @@ var ArrayEnumerator = (function () {
     };
     return ArrayEnumerator;
 })();
-/// <reference path="linq.ts"/>
-var t = new EnumerableArray();
-console.log("Test.");
 Object.prototype.may = function () {
     return new Opt(this);
 };
