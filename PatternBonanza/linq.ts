@@ -1,3 +1,5 @@
+/// <reference path="common.ts"/>
+
 interface IEnumerable<T> {
     getEnumerator: ()=> IEnumerator<T>;
     where: (predicate: IPredicate<T>)=> IEnumerable<T>;
