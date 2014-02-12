@@ -19,10 +19,13 @@
   <ItemGroup>
     <Content Include="app.css" />
     <Content Include="default.htm" />
+    <Content Include="dependencies.js" />
     <Content Include="web.config" />
   </ItemGroup>
   <ItemGroup>
     <TypeScriptCompile Include="app.ts" />
+    <TypeScriptCompile Include="common.ts" />
+    <TypeScriptCompile Include="ioc.ts" />
     <TypeScriptCompile Include="linq.ts" />
     <TypeScriptCompile Include="option.ts" />
   </ItemGroup>

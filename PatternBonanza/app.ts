@@ -1,4 +1,4 @@
-/// <reference path="ioc.ts" />
+/// <reference path="linq.ts"/>
 
 interface IMedium { 
 	write(greeting: string): void;
@@ -21,4 +21,8 @@ class ConsoleGreeter implements IMedium {
 	}
 }
 
-IoC.autoResolve(window["dependencies"]);
+class TestClass {
+    constructor(public name: string, public age: number) {}
+}
+
+console.log(new EnumerableArray([new TestClass("Caroline", 24), new TestClass("Thomas", 26)]).where(p=> p.age > 25).each(p => console.log(p)));

@@ -1,81 +1,210 @@
 /// <reference path="common.ts"/>
 
-interface IEnumerable<T> {
-    getEnumerator: ()=> IEnumerator<T>;
-    where: (predicate: IPredicate<T>)=> IEnumerable<T>;
-    first: (predicate?: IPredicate<T>)=> T;
+interface IEnumerable<TIn> {
+    getEnumerator: ()=> IEnumerator<TIn>;
+    count: (predicate?: IPredicate<TIn>) => number;
+    where: (predicate: IPredicate<TIn>) => IEnumerable<TIn>;
+    first: (predicate?: IPredicate<TIn>) => TIn;
+    each: (action: IAction<TIn>) => void;
+    select: <TOut>(selector: ISelector<TIn, TOut>) => IEnumerable<TOut>;
+    aggregate: (aggregator: IAggFunc<TIn>) => TIn;
 }
 
-interface IPredicate<T> {
-    (item: T): boolean;
+interface IPredicate<TIn> {
+    (item: TIn): boolean;
 }
 
-class EnumerableArray<T> implements IEnumerable<T> {
-    public storage: T[];
+interface IAction<TIn> {
+    (item: TIn): void;
+};
 
-    public getEnumerator(): IEnumerator<T> {
+interface ISelector<TIn, TOut> {
+    (item: TIn): TOut;
+}
+
+interface IAggFunc<TIn> {
+    (agg: TIn, next: TIn): TIn;
+}
+
+class IterationResult<TIn> {
+    constructor(public result: TIn, public shouldBreak: boolean) {}
+}
+
+class FilterAggregator<TIn> {
+    private storage: TIn[];
+
+    public aggregate(item: TIn): void {
+        this.storage.push(item);
+    }
+
+    public aggregationResult(): IEnumerable<TIn> {
+        return new EnumerableArray(this.storage);
+    }
+}
+
+class Aggregator<TIn> {
+    private storage: TIn[] = [];
+
+    public aggregate(item: TIn): void {
+        this.aggregatorKernel(this.storage, item);
+    }
+
+    public aggregationResult(): IEnumerable<TIn> {
+        return new EnumerableArray(this.storage);
+    }
+
+    constructor(private aggregatorKernel: IAggregatorKernel<TIn>) {}
+}
+
+interface IIteratorKernel<TIn, TOut> {
+    (item: TIn): IterationResult<TOut>
+}
+
+interface IAggregatorKernel<TIn> {
+    (storage: TIn[], item: TIn): void;
+}
+
+class EnumerableArray<TIn> implements IEnumerable<TIn> {
+    public storage: TIn[];
+
+    public getEnumerator(): IEnumerator<TIn> {
         return new ArrayEnumerator((i)=> this.storage[i]);
     }
 
-    public where(predicate: IPredicate<T>): IEnumerable<T> {
-        var item: T;
-        var enumerator = this.getEnumerator();
-
-        var result = new Array<T>();
-
-        while ((item = enumerator.next()) !== null) {
-            if (predicate(item)) {
-                result.push(item);
-            }
-        }
-
-        return null;
+    private iterate<TOut>(iterator: IIteratorKernel<TIn, TOut>): IEnumerable<TOut> {
+        return this.doIterate(iterator, (agg, next)=> agg.push(next));
     }
 
-    public first(predicate?: IPredicate<T>): T {
-        var item: T;
-        var enumerator = this.getEnumerator();
+    private aggregateIterate(aggregator: IAggFunc<TIn>): TIn {
+        var getDefaultValueForType = (value: any): any=> {
+            if (typeof value === "number") {
+                return 0;
+            }
+            return "";
+        };
 
-        while ((item = enumerator.next()) !== null) {
-            if (predicate) {
-                if (predicate(item)) {
-                    return item;
+        return this.doIterate(
+            item=> new IterationResult(item, false),
+            (agg, next)=> {
+                if (typeof agg[0] === "undefined") {
+                    agg[0] = getDefaultValueForType(next);
                 }
-            } else {
-                return item;
+
+                agg[0] = aggregator(agg[0], next);
+            }).first();
+    }
+
+    private doIterate<TOut>(
+        iterator: IIteratorKernel<TIn, TOut>,
+        aggregator: IAggregatorKernel<TOut>): IEnumerable<TOut> {
+
+        var currentItem: TIn;
+        var enumerator = this.getEnumerator();
+
+        var resultAggregator = new Aggregator(aggregator);
+
+        while ((currentItem = enumerator.next()) !== null) {
+            var iteration = iterator(currentItem);
+
+            if (iteration.result !== null) {
+                resultAggregator.aggregate(iteration.result);
+            }
+
+            if (iteration.shouldBreak) {
+                break;
             }
         }
 
-        throw new Error("No items in sequence.");
+        return resultAggregator.aggregationResult();
     }
 
+    public getItem(index: number): TIn {
+        return this.storage[index];
+    }
 
-    constructor(arr?: T[]) {
+    public count(predicate?: IPredicate<TIn>): number {
+        if (!predicate) {
+            return this.storage.length;
+            
+        }
+
+        return this.where(predicate).count();
+    }
+
+    public where(predicate: IPredicate<TIn>): IEnumerable<TIn> {
+        return this.iterate(item => {
+            if (predicate(item)) {
+                return new IterationResult(item, false);
+            } else {
+                return new IterationResult(null, false);
+            }
+        });
+    }
+
+    public first(predicate?: IPredicate<TIn>): TIn {
+        if (!predicate) {
+            return this.getItem(0);
+        }
+
+        var result = this.iterate(item => {
+            if (predicate(item)) {
+                return new IterationResult(item, true);
+            } else {
+                return new IterationResult(null, false);
+            }
+        });
+
+        if (result.count() > 0) {
+            return this.getItem(0);
+        } else {
+            throw new Error("No items in sequence.");
+        }
+    }
+
+    public each(action: IAction<TIn>): void {
+        this.iterate(item => {
+            action(item);
+            return new IterationResult(null, false);
+        });
+    }
+
+    public select<TOut>(selector: ISelector<TIn, TOut>): IEnumerable<TOut> {
+        return this.iterate(item => {
+            var select = selector(item);
+            return new IterationResult(select, false);
+        });
+    }
+
+    public aggregate(aggFunc: IAggFunc<TIn>): TIn {
+        return this.aggregateIterate(aggFunc);
+    }
+
+    constructor(arr?: TIn[]) {
         if (arr) {
             this.storage = arr;
         } else {
-            this.storage = new Array<T>();
+            this.storage = new Array<TIn>();
         }
     }
 
 }
 
-interface IEnumerator<T> {
-    current: T;
-    next: ()=> T;
+interface IEnumerator<TIn> {
+    current: TIn;
+    next: ()=> TIn;
     reset: ()=> void;
 }
 
-class ArrayEnumerator<T> implements IEnumerator<T> {
+class ArrayEnumerator<TIn> implements IEnumerator<TIn> {
 
     private currentIndex: number;
-    private accessor: (index: number)=> T;
+    private accessor: (index: number)=> TIn;
 
-    get current(): T {
+    get current(): TIn {
         return this.accessor(this.currentIndex);
     }
 
-    public next(): T {
+    public next(): TIn {
         var next = this.current;
 
         if (next) {
@@ -90,16 +219,16 @@ class ArrayEnumerator<T> implements IEnumerator<T> {
         this.currentIndex = 0;
     }
 
-    constructor(accessor: (index: number)=> T) {
+    constructor(accessor: (index: number)=> TIn) {
         this.currentIndex = 0;
         this.accessor = accessor;
     }
 
 }
 
-interface IList<T> {
+interface IList<TIn> {
     count: number;
-    add: (item: T)=> void;
-    get: (index: number)=> T;
+    add: (item:TIn)=> void;
+    get: (index: number)=> TIn;
     remove: (index: number)=> void;
 }
