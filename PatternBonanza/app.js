@@ -1,197 +1,237 @@
 /// <reference path="common.ts"/>
-
-;
-
-var IterationResult = (function () {
-    function IterationResult(result, shouldBreak) {
-        this.result = result;
-        this.shouldBreak = shouldBreak;
+var Enumerable = (function () {
+    function Enumerable() {
     }
-    return IterationResult;
+    Enumerable.fromArray = function (arr) {
+        return new Linq.Core.Enumerable(arr);
+    };
+
+    Enumerable.fromObject = function (obj) {
+        var pairs = [];
+        for (var key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                pairs.push(new Linq.Core.KeyValuePair(key, obj[key]));
+            }
+        }
+        return new Linq.Core.Enumerable(pairs);
+    };
+    return Enumerable;
 })();
 
-var FilterAggregator = (function () {
-    function FilterAggregator() {
-    }
-    FilterAggregator.prototype.aggregate = function (item) {
-        this.storage.push(item);
-    };
+var Linq;
+(function (Linq) {
+    (function (Core) {
+        ;
 
-    FilterAggregator.prototype.aggregationResult = function () {
-        return new EnumerableArray(this.storage);
-    };
-    return FilterAggregator;
-})();
-
-var Aggregator = (function () {
-    function Aggregator(aggregatorKernel) {
-        this.aggregatorKernel = aggregatorKernel;
-        this.storage = [];
-    }
-    Aggregator.prototype.aggregate = function (item) {
-        this.aggregatorKernel(this.storage, item);
-    };
-
-    Aggregator.prototype.aggregationResult = function () {
-        return new EnumerableArray(this.storage);
-    };
-    return Aggregator;
-})();
-
-var EnumerableArray = (function () {
-    function EnumerableArray(arr) {
-        if (arr) {
-            this.storage = arr;
-        } else {
-            this.storage = new Array();
-        }
-    }
-    EnumerableArray.prototype.getEnumerator = function () {
-        var _this = this;
-        return new ArrayEnumerator(function (i) {
-            return _this.storage[i];
-        });
-    };
-
-    EnumerableArray.prototype.iterate = function (iterator) {
-        return this.doIterate(iterator, function (agg, next) {
-            return agg.push(next);
-        });
-    };
-
-    EnumerableArray.prototype.aggregateIterate = function (aggregator) {
-        var getDefaultValueForType = function (value) {
-            if (typeof value === "number") {
-                return 0;
+        var IterationResult = (function () {
+            function IterationResult(result, shouldBreak) {
+                this.result = result;
+                this.shouldBreak = shouldBreak;
             }
-            return "";
-        };
+            return IterationResult;
+        })();
 
-        var test = this.doIterate(function (item) {
-            return new IterationResult(item, false);
-        }, function (agg, next) {
-            if (typeof agg[0] === "undefined") {
-                agg[0] = getDefaultValueForType(next);
+        var FilterAggregator = (function () {
+            function FilterAggregator() {
+                this.storage = [];
             }
+            FilterAggregator.prototype.aggregate = function (item) {
+                this.storage.push(item);
+            };
 
-            agg[0] = aggregator(agg[0], next);
-        });
-        console.log(test);
-        return test.first();
-    };
+            FilterAggregator.prototype.getResult = function () {
+                return new Enumerable(this.storage);
+            };
+            return FilterAggregator;
+        })();
 
-    EnumerableArray.prototype.doIterate = function (iterator, aggregator) {
-        var currentItem;
-        var enumerator = this.getEnumerator();
-
-        var resultAggregator = new Aggregator(aggregator);
-
-        while ((currentItem = enumerator.next()) !== null) {
-            var iteration = iterator(currentItem);
-
-            if (iteration.result !== null) {
-                resultAggregator.aggregate(iteration.result);
+        var AggregationAggregator = (function () {
+            function AggregationAggregator() {
             }
+            AggregationAggregator.prototype.aggregate = function (item) {
+            };
 
-            if (iteration.shouldBreak) {
-                break;
+            AggregationAggregator.prototype.getResult = function () {
+                return null;
+            };
+            return AggregationAggregator;
+        })();
+
+        var Aggregator = (function () {
+            function Aggregator(aggregatorKernel) {
+                this.aggregatorKernel = aggregatorKernel;
+                this.storage = [];
             }
-        }
+            Aggregator.prototype.aggregate = function (item) {
+                this.aggregatorKernel(this.storage, item);
+            };
 
-        return resultAggregator.aggregationResult();
-    };
+            Aggregator.prototype.aggregationResult = function () {
+                return new Enumerable(this.storage);
+            };
+            return Aggregator;
+        })();
 
-    EnumerableArray.prototype.getItem = function (index) {
-        return this.storage[index];
-    };
-
-    EnumerableArray.prototype.count = function (predicate) {
-        if (!predicate) {
-            return this.storage.length;
-        }
-
-        return this.where(predicate).count();
-    };
-
-    EnumerableArray.prototype.where = function (predicate) {
-        return this.iterate(function (item) {
-            if (predicate(item)) {
-                return new IterationResult(item, false);
-            } else {
-                return new IterationResult(null, false);
+        var Iterator = (function () {
+            function Iterator(enumerator) {
+                this.enumerator = enumerator;
             }
-        });
-    };
+            Iterator.prototype.iterate = function (iterator, aggregator) {
+                var currentItem;
 
-    EnumerableArray.prototype.first = function (predicate) {
-        if (!predicate) {
-            return this.getItem(0);
-        }
+                while ((currentItem = this.enumerator.next()) !== null) {
+                    var iteration = iterator(currentItem);
 
-        var result = this.iterate(function (item) {
-            if (predicate(item)) {
-                return new IterationResult(item, true);
-            } else {
-                return new IterationResult(null, false);
+                    if (iteration.result !== null) {
+                        aggregator.aggregate(iteration.result);
+                    }
+
+                    if (iteration.shouldBreak) {
+                        break;
+                    }
+                }
+
+                return aggregator.getResult();
+            };
+
+            Iterator.prototype.filter = function (iterator, aggregator) {
+                return this.iterate(iterator, aggregator);
+            };
+
+            Iterator.prototype.aggregate = function (iterator, aggregator) {
+                return this.iterate(iterator, aggregator);
+            };
+            return Iterator;
+        })();
+
+        var Enumerable = (function () {
+            function Enumerable(arr) {
+                if (arr) {
+                    this.storage = arr;
+                } else {
+                    this.storage = new Array();
+                }
             }
-        });
+            Enumerable.prototype.getEnumerator = function () {
+                var _this = this;
+                return new ArrayEnumerator(function (i) {
+                    return _this.storage[i];
+                });
+            };
 
-        if (result.count() > 0) {
-            return this.getItem(0);
-        } else {
-            throw new Error("No items in sequence.");
-        }
-    };
+            Enumerable.prototype.filter = function (iterator) {
+                return new Iterator(this.getEnumerator()).filter(iterator, new FilterAggregator());
+            };
 
-    EnumerableArray.prototype.each = function (action) {
-        this.iterate(function (item) {
-            action(item);
-            return new IterationResult(null, false);
-        });
-    };
+            Enumerable.prototype.aggregateFilter = function (aggregator) {
+                return new Iterator(this.getEnumerator()).aggregate(function (i) {
+                    return new IterationResult(i, false);
+                }, aggregator);
+            };
 
-    EnumerableArray.prototype.select = function (selector) {
-        return this.iterate(function (item) {
-            var select = selector(item);
-            return new IterationResult(select, false);
-        });
-    };
+            Enumerable.prototype.item = function (index) {
+                return this.storage[index];
+            };
 
-    EnumerableArray.prototype.aggregate = function (aggFunc) {
-        return this.aggregateIterate(aggFunc);
-    };
-    return EnumerableArray;
-})();
+            Enumerable.prototype.count = function (predicate) {
+                if (!predicate) {
+                    return this.storage.length;
+                }
 
-var ArrayEnumerator = (function () {
-    function ArrayEnumerator(accessor) {
-        this.currentIndex = 0;
-        this.accessor = accessor;
-    }
-    Object.defineProperty(ArrayEnumerator.prototype, "current", {
-        get: function () {
-            return this.accessor(this.currentIndex);
-        },
-        enumerable: true,
-        configurable: true
-    });
+                return this.where(predicate).count();
+            };
 
-    ArrayEnumerator.prototype.next = function () {
-        var next = this.current;
+            Enumerable.prototype.where = function (predicate) {
+                return this.filter(function (item) {
+                    if (predicate(item)) {
+                        return new IterationResult(item, false);
+                    } else {
+                        return new IterationResult(null, false);
+                    }
+                });
+            };
 
-        if (next) {
-            this.currentIndex++;
-            return next;
-        }
+            Enumerable.prototype.firstOrDefault = function (predicate) {
+                if (!predicate) {
+                    return this.item(0);
+                }
 
-        return null;
-    };
+                var result = this.filter(function (item) {
+                    if (predicate(item)) {
+                        return new IterationResult(item, true);
+                    } else {
+                        return new IterationResult(null, false);
+                    }
+                });
 
-    ArrayEnumerator.prototype.reset = function () {
-        this.currentIndex = 0;
-    };
-    return ArrayEnumerator;
-})();
+                if (result.count() > 0) {
+                    return result.firstOrDefault();
+                } else {
+                    return null;
+                }
+            };
+
+            Enumerable.prototype.each = function (action) {
+                this.filter(function (item) {
+                    action(item);
+                    return new IterationResult(null, false);
+                });
+            };
+
+            Enumerable.prototype.select = function (selector) {
+                return this.filter(function (item) {
+                    return new IterationResult(selector(item), false);
+                });
+            };
+
+            Enumerable.prototype.aggregate = function (aggFunc) {
+                return null;
+            };
+            return Enumerable;
+        })();
+        Core.Enumerable = Enumerable;
+
+        var KeyValuePair = (function () {
+            function KeyValuePair(key, value) {
+                this.key = key;
+                this.value = value;
+            }
+            return KeyValuePair;
+        })();
+        Core.KeyValuePair = KeyValuePair;
+
+        var ArrayEnumerator = (function () {
+            function ArrayEnumerator(accessor) {
+                this.currentIndex = 0;
+                this.accessor = accessor;
+            }
+            Object.defineProperty(ArrayEnumerator.prototype, "current", {
+                get: function () {
+                    return this.accessor(this.currentIndex);
+                },
+                enumerable: true,
+                configurable: true
+            });
+
+            ArrayEnumerator.prototype.next = function () {
+                var next = this.current;
+
+                if (next) {
+                    this.currentIndex++;
+                    return next;
+                }
+
+                return null;
+            };
+
+            ArrayEnumerator.prototype.reset = function () {
+                this.currentIndex = 0;
+            };
+            return ArrayEnumerator;
+        })();
+    })(Linq.Core || (Linq.Core = {}));
+    var Core = Linq.Core;
+})(Linq || (Linq = {}));
 /// <reference path="linq.ts"/>
 
 var Greeter = (function () {
@@ -221,58 +261,8 @@ var TestClass = (function () {
     return TestClass;
 })();
 
-console.log(new EnumerableArray([new TestClass("Caroline", 24), new TestClass("Thomas", 26)]).where(function (p) {
-    return p.age > 25;
-}).each(function (p) {
-    return console.log(p);
-}));
-Object.prototype.may = function () {
-    return new Opt(this);
-};
-
-Number.prototype.may = function () {
-    return new Opt(this);
-};
-
-String.prototype.may = function () {
-    return new Opt(this);
-};
-
-var Opt = (function () {
-    function Opt(value, hasValue) {
-        if (typeof hasValue === "undefined") { hasValue = true; }
-        this.valueStore = value;
-        this.valueSet = hasValue;
-    }
-    Object.defineProperty(Opt.prototype, "hasValue", {
-        get: function () {
-            return this.valueSet;
-        },
-        enumerable: true,
-        configurable: true
-    });
-
-    Object.defineProperty(Opt.prototype, "value", {
-        get: function () {
-            return this.hasValue ? this.valueStore : (this.otherwiseFunc ? this.otherwiseFunc() : this.valueStore);
-        },
-        set: function (val) {
-            this.valueStore = val;
-            this.valueSet = true;
-        },
-        enumerable: true,
-        configurable: true
-    });
-
-
-    Opt.prototype.otherwise = function (other) {
-        this.otherwiseFunc = other;
-        return this;
-    };
-
-    Opt.noVal = function () {
-        return new Opt(null, false);
-    };
-    return Opt;
-})();
-//# sourceMappingURL=app.js.map
+Enumerable.fromObject({ "test": 42 }).where(function (kvp) {
+    return kvp.value === 42;
+}).each(function (v) {
+    return console.log(v);
+});

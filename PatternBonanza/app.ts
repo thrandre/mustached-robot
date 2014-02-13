@@ -25,4 +25,4 @@ class TestClass {
     constructor(public name: string, public age: number) {}
 }
 
-console.log(new EnumerableArray([new TestClass("Caroline", 24), new TestClass("Thomas", 26)]).where(p=> p.age > 25).each(p => console.log(p)));
+Enumerable.fromObject({"test": 42}).where(kvp => kvp.value === 42).each(v => console.log(v));
