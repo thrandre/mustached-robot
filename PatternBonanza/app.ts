@@ -25,4 +25,16 @@ class TestClass {
     constructor(public name: string, public age: number) {}
 }
 
-Enumerable.fromObject({"test": 42}).where(kvp => kvp.value === 42).each(v => console.log(v));
+var l = Enumerable.fromArray([1, 2, 3, 4, 5]).orderByAscending((i1, i2) => {
+	if(i1 === i2){
+		return 0;
+	}
+	
+	if(i1 > i2) {
+		return -1;
+	}
+	
+	return 1;
+});
+
+console.log(l);

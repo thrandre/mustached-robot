@@ -25,11 +25,15 @@ module Linq.Core {
         firstOrDefault: (predicate?: IPredicate<TIn>) => TIn;
         each: (action: IAction<TIn>) => void;
         select: <TOut>(selector: ISelector<TIn, TOut>) => IEnumerable<TOut>;
+        orderByAscending: (sortFunction: ISortFunction<TIn>) => IEnumerable<TIn>;
         aggregate: (aggregator: IAggregatorFunction<TIn>) => TIn;
+        
+        toArray: () => TIn[];
+        toList: () => Linq.Collections.List<TIn>;
     }
     
     export interface IPredicate<TIn> {
-        (item: TIn): boolean;
+        (item: TIn, i?: number): boolean;
     }
     
     export interface IAction<TIn> {
@@ -44,12 +48,12 @@ module Linq.Core {
         (agg: TIn, next: TIn): TIn;
     }
     
-    interface IIteratorKernel<TIn, TOut> {
-        (item: TIn): IterationResult<TOut>
+    export interface ISortFunction<TIn> {
+        (item1: TIn, item2: TIn): number;
     }
     
-    interface IAggregatorKernel<TIn> {
-        (storage: TIn[], item: TIn): void;
+    interface IIteratorKernel<TIn, TOut> {
+        (item: TIn, i: number): IterationResult<TOut>
     }
     
     class IterationResult<TIn> {
@@ -83,28 +87,43 @@ module Linq.Core {
         }
     }
     
-    class Aggregator<TIn> {
+    class SortingAggregator<TIn> implements IAggregator<TIn, IEnumerable<TIn>> {
         private storage: TIn[] = [];
-    
-        public aggregate(item: TIn): void {
-            this.aggregatorKernel(this.storage, item);
+        
+        private getInsertionPosition(item: TIn): number {
+            var pos = 0;
+            new Enumerable(this.storage).firstOrDefault((item2, i?) => {
+                if(this.sortFunc(item, item2) > -1) {
+                    pos = i-1 < 0 ? 0 : i-1;
+                    return true;
+                }
+                return false;
+            });
+            
+            return pos;
         }
-    
-        public aggregationResult(): IEnumerable<TIn> {
+        
+        public aggregate(item: TIn): void {
+            var pos = 
+            this.storage.splice(, 0, item);
+        }
+        
+        public getResult(): IEnumerable<TIn> {
             return new Enumerable(this.storage);
         }
-    
-        constructor(private aggregatorKernel: IAggregatorKernel<TIn>) {}
+        
+        constructor(private sortFunc: ISortFunction<TIn>) {}
     }
     
     class Iterator<TIn> {
         constructor(private enumerator: IEnumerator<TIn>) {}
         
         private iterate<TOut, TOut2>(iterator: IIteratorKernel<TIn, TOut>, aggregator: IAggregator<TOut, TOut2>): TOut2 {
+            var i: number = 0;
             var currentItem: TIn;
     
             while ((currentItem = this.enumerator.next()) !== null) {
-                var iteration = iterator(currentItem);
+                var iteration = iterator(currentItem, i);
     
                 if (iteration.result !== null) {
                     aggregator.aggregate(iteration.result);
@@ -113,6 +132,8 @@ module Linq.Core {
                 if (iteration.shouldBreak) {
                     break;
                 }
+                
+                i++;
             }
     
             return aggregator.getResult();
@@ -134,13 +155,21 @@ module Linq.Core {
             return new ArrayEnumerator((i) => this.storage[i]);
         }
         
-        private filter<TOut>(iterator: IIteratorKernel<TIn, TOut>): IEnumerable<TOut> {
-            return new Iterator(this.getEnumerator()).filter(iterator, new FilterAggregator<TOut>());
+        private performFiltering<TOut>(iterator: IIteratorKernel<TIn, TOut>, aggregator: IAggregator<TOut, IEnumerable<TOut>>): IEnumerable<TOut> {
+            return new Iterator(this.getEnumerator()).filter(iterator, aggregator);
         }
         
-        private aggregateFilter(aggregator: IAggregator<TIn, TIn>): TIn {
+        private performAggregation(iterator: IIteratorKernel<TIn, TIn>, aggregator: IAggregator<TIn, TIn>): TIn {
             return new Iterator(this.getEnumerator()).aggregate(i => new IterationResult(i, false), aggregator);
         } 
+        
+        private filter<TOut>(iterator: IIteratorKernel<TIn, TOut>): IEnumerable<TOut> {
+            return this.performFiltering(iterator, new FilterAggregator<TOut>());
+        }
+        
+        private sort(sortFunction: ISortFunction<TIn>): IEnumerable<TIn> {
+            return this.performFiltering(i => new IterationResult(i, false), new SortingAggregator(sortFunction));
+        }
         
         public item(index: number): TIn {
             return this.storage[index];
@@ -169,8 +198,8 @@ module Linq.Core {
                 return this.item(0);
             }
     
-            var result = this.filter(item => {
-                if (predicate(item)) {
+            var result = this.filter((item, i) => {
+                if (predicate(item, i)) {
                     return new IterationResult(item, true);
                 } else {
                     return new IterationResult(null, false);
@@ -196,11 +225,23 @@ module Linq.Core {
                 return new IterationResult(selector(item), false);
             });
         }
-    
+        
+        public orderByAscending(sortFunction: ISortFunction<TIn>): IEnumerable<TIn> {
+            return this.sort(sortFunction);
+        }
+        
         public aggregate(aggFunc: IAggregatorFunction<TIn>): TIn {
             return null;//this.aggregateFilter(aggFunc);
         }
-    
+        
+        public toArray(): TIn[] {
+            return this.storage.slice(0);
+        }
+        
+        public toList(): Linq.Collections.List<TIn> {
+            return new Linq.Collections.List(this.toArray());
+        }
+        
         constructor(arr?: TIn[]) {
             if (arr) {
                 this.storage = arr;
@@ -250,13 +291,23 @@ module Linq.Core {
             this.accessor = accessor;
         }
     
+    }    
+}
+
+module Linq.Collections {
+    export interface IList<TIn> {
+        add: (item:TIn) => void;
+        item: (index: number) => TIn;
+        remove: (index: number) => void;
     }
     
-    interface IList<TIn> {
-        count: number;
-        add: (item:TIn)=> void;
-        get: (index: number)=> TIn;
-        remove: (index: number)=> void;
+    export class List<TIn> extends Linq.Core.Enumerable<TIn> implements IList<TIn> {
+        public add(item: TIn): void {
+            this.storage.push(item);
+        }
+        
+        public remove(index: number): void {
+            this.storage.splice(index, 1);
+        }
     }
-    
 }
