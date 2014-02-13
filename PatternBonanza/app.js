@@ -29,6 +29,12 @@ var Linq;
     (function (Core) {
         ;
 
+        (function (SortOrder) {
+            SortOrder[SortOrder["Ascending"] = 0] = "Ascending";
+            SortOrder[SortOrder["Descending"] = 1] = "Descending";
+        })(Core.SortOrder || (Core.SortOrder = {}));
+        var SortOrder = Core.SortOrder;
+
         var IterationResult = (function () {
             function IterationResult(result, shouldBreak) {
                 this.result = result;
@@ -36,6 +42,7 @@ var Linq;
             }
             return IterationResult;
         })();
+        Core.IterationResult = IterationResult;
 
         var FilterAggregator = (function () {
             function FilterAggregator() {
@@ -52,31 +59,74 @@ var Linq;
         })();
 
         var AggregationAggregator = (function () {
-            function AggregationAggregator() {
+            function AggregationAggregator(selector, aggregatorFunction) {
+                this.selector = selector;
+                this.aggregatorFunction = aggregatorFunction;
             }
             AggregationAggregator.prototype.aggregate = function (item) {
+                this.storage = this.aggregatorFunction(this.storage, this.selector(item));
             };
 
             AggregationAggregator.prototype.getResult = function () {
-                return null;
+                return this.storage;
             };
             return AggregationAggregator;
         })();
 
-        var SortingAggregator = (function () {
-            function SortingAggregator(sortFunc) {
-                this.sortFunc = sortFunc;
+        var GroupingAggregator = (function () {
+            function GroupingAggregator(selector) {
+                this.selector = selector;
                 this.storage = [];
             }
-            SortingAggregator.prototype.getInsertionPosition = function (item) {
+            GroupingAggregator.prototype.bucket = function (item) {
+                var key = this.selector(item);
+                var bucket = new Enumerable(this.storage).firstOrDefault(function (b) {
+                    return b.key === key;
+                });
+
+                if (bucket === null || typeof bucket === "undefined") {
+                    bucket = new Grouping(key);
+                    this.storage.push(bucket);
+                }
+
+                bucket.add(item);
+            };
+
+            GroupingAggregator.prototype.aggregate = function (item) {
+                this.bucket(item);
+            };
+
+            GroupingAggregator.prototype.getResult = function () {
+                return new Enumerable(this.storage);
+            };
+            return GroupingAggregator;
+        })();
+
+        var SortingAggregator = (function () {
+            function SortingAggregator(selector, sortOrder) {
+                this.selector = selector;
+                this.sortOrder = sortOrder;
+                this.storage = [];
+            }
+            SortingAggregator.prototype.getComparer = function () {
+                return this.sortOrder === 0 /* Ascending */ ? function (i1, i2) {
+                    return i1 > i2;
+                } : function (i1, i2) {
+                    return i2 > i1;
+                };
+            };
+
+            SortingAggregator.prototype.getInsertionPosition = function (item1) {
                 var _this = this;
+                var comparer = this.getComparer();
                 var pos = 0;
-                new Enumerable(this.storage).firstOrDefault(function (item2, i) {
-                    if (_this.sortFunc(item, item2) > -1) {
-                        pos = i - 1 < 0 ? 0 : i - 1;
-                        return true;
+
+                new Enumerable(this.storage).firstOrDefault(function (item2) {
+                    if (comparer(_this.selector(item1), _this.selector(item2))) {
+                        pos++;
+                        return false;
                     }
-                    return false;
+                    return true;
                 });
 
                 return pos;
@@ -129,11 +179,7 @@ var Linq;
 
         var Enumerable = (function () {
             function Enumerable(arr) {
-                if (arr) {
-                    this.storage = arr;
-                } else {
-                    this.storage = new Array();
-                }
+                this.storage = arr ? arr : new Array();
             }
             Enumerable.prototype.getEnumerator = function () {
                 var _this = this;
@@ -142,24 +188,34 @@ var Linq;
                 });
             };
 
-            Enumerable.prototype.performFiltering = function (iterator, aggregator) {
+            Enumerable.prototype.aggregate = function (selector, aggFunc) {
+                return new Iterator(this.getEnumerator()).aggregate(function (i) {
+                    return new IterationResult(i, false);
+                }, new AggregationAggregator(selector, aggFunc));
+            };
+
+            Enumerable.prototype.iterate = function (iterator, aggregator) {
                 return new Iterator(this.getEnumerator()).filter(iterator, aggregator);
             };
 
-            Enumerable.prototype.performAggregation = function (iterator, aggregator) {
-                return new Iterator(this.getEnumerator()).aggregate(function (i) {
-                    return new IterationResult(i, false);
-                }, aggregator);
+            Enumerable.prototype.group = function (iterator, aggregator) {
+                return new Iterator(this.getEnumerator()).filter(iterator, aggregator);
             };
 
             Enumerable.prototype.filter = function (iterator) {
-                return this.performFiltering(iterator, new FilterAggregator());
+                return this.iterate(iterator, new FilterAggregator());
             };
 
-            Enumerable.prototype.sort = function (sortFunction) {
-                return this.performFiltering(function (i) {
+            Enumerable.prototype.sort = function (selector, order) {
+                return this.iterate(function (i) {
                     return new IterationResult(i, false);
-                }, new SortingAggregator(sortFunction));
+                }, new SortingAggregator(selector, order));
+            };
+
+            Enumerable.prototype.groupBy = function (selector) {
+                return this.group(function (i) {
+                    return new IterationResult(i, false);
+                }, new GroupingAggregator(selector));
             };
 
             Enumerable.prototype.item = function (index) {
@@ -167,20 +223,15 @@ var Linq;
             };
 
             Enumerable.prototype.count = function (predicate) {
-                if (!predicate) {
-                    return this.storage.length;
-                }
-
-                return this.where(predicate).count();
+                return predicate ? this.where(predicate).count() : this.storage.length;
             };
 
             Enumerable.prototype.where = function (predicate) {
                 return this.filter(function (item) {
                     if (predicate(item)) {
                         return new IterationResult(item, false);
-                    } else {
-                        return new IterationResult(null, false);
                     }
+                    return new IterationResult(null, false);
                 });
             };
 
@@ -192,23 +243,11 @@ var Linq;
                 var result = this.filter(function (item, i) {
                     if (predicate(item, i)) {
                         return new IterationResult(item, true);
-                    } else {
-                        return new IterationResult(null, false);
                     }
-                });
-
-                if (result.count() > 0) {
-                    return result.firstOrDefault();
-                } else {
-                    return null;
-                }
-            };
-
-            Enumerable.prototype.each = function (action) {
-                this.filter(function (item) {
-                    action(item);
                     return new IterationResult(null, false);
                 });
+
+                return result.count() > 0 ? result.firstOrDefault() : null;
             };
 
             Enumerable.prototype.select = function (selector) {
@@ -217,12 +256,28 @@ var Linq;
                 });
             };
 
-            Enumerable.prototype.orderByAscending = function (sortFunction) {
-                return this.sort(sortFunction);
+            Enumerable.prototype.orderByAscending = function (selector) {
+                return this.sort(selector, 0 /* Ascending */);
             };
 
-            Enumerable.prototype.aggregate = function (aggFunc) {
-                return null;
+            Enumerable.prototype.orderByDescending = function (selector) {
+                return this.sort(selector, 1 /* Descending */);
+            };
+
+            Enumerable.prototype.aggr = function (selector, aggFunc) {
+                return this.aggregate(selector, function (sum, next) {
+                    if (typeof sum === "undefined") {
+                        return next;
+                    } else {
+                        return aggFunc(sum, next);
+                    }
+                });
+            };
+
+            Enumerable.prototype.sum = function (selector) {
+                return this.aggr(selector, function (sum, next) {
+                    return sum + next;
+                });
             };
 
             Enumerable.prototype.toArray = function () {
@@ -230,11 +285,44 @@ var Linq;
             };
 
             Enumerable.prototype.toList = function () {
-                return new Linq.Collections.List(this.toArray());
+                return new List(this.toArray());
             };
             return Enumerable;
         })();
         Core.Enumerable = Enumerable;
+
+        var List = (function (_super) {
+            __extends(List, _super);
+            function List() {
+                _super.apply(this, arguments);
+            }
+            List.prototype.add = function (item) {
+                this.storage.push(item);
+            };
+
+            List.prototype.remove = function (index) {
+                this.storage.splice(index, 1);
+            };
+
+            List.prototype.each = function (action) {
+                this.filter(function (item) {
+                    action(item);
+                    return new Linq.Core.IterationResult(null, false);
+                });
+            };
+            return List;
+        })(Linq.Core.Enumerable);
+        Core.List = List;
+
+        var Grouping = (function (_super) {
+            __extends(Grouping, _super);
+            function Grouping(key) {
+                _super.call(this);
+                this.key = key;
+            }
+            return Grouping;
+        })(List);
+        Core.Grouping = Grouping;
 
         var KeyValuePair = (function () {
             function KeyValuePair(key, value) {
@@ -277,28 +365,6 @@ var Linq;
     })(Linq.Core || (Linq.Core = {}));
     var Core = Linq.Core;
 })(Linq || (Linq = {}));
-
-var Linq;
-(function (Linq) {
-    (function (Collections) {
-        var List = (function (_super) {
-            __extends(List, _super);
-            function List() {
-                _super.apply(this, arguments);
-            }
-            List.prototype.add = function (item) {
-                this.storage.push(item);
-            };
-
-            List.prototype.remove = function (index) {
-                this.storage.splice(index, 1);
-            };
-            return List;
-        })(Linq.Core.Enumerable);
-        Collections.List = List;
-    })(Linq.Collections || (Linq.Collections = {}));
-    var Collections = Linq.Collections;
-})(Linq || (Linq = {}));
 /// <reference path="linq.ts"/>
 
 var Greeter = (function () {
@@ -320,23 +386,77 @@ var ConsoleGreeter = (function () {
     return ConsoleGreeter;
 })();
 
-var TestClass = (function () {
-    function TestClass(name, age) {
+var Person = (function () {
+    function Person(name, age, gender) {
         this.name = name;
         this.age = age;
+        this.gender = gender;
     }
-    return TestClass;
+    return Person;
 })();
 
-var l = Enumerable.fromArray([1, 2, 3, 4, 5]).orderByAscending(function (i1, i2) {
-    if (i1 === i2) {
-        return 0;
-    }
-    if (i1 > i2) {
-        return -1;
-    }
+var p = [
+    new Person("Caroline", 24, "female"),
+    new Person("Thomas", 26, "male"),
+    new Person("Lasse", 21, "male")
+];
 
-    return 1;
+var l = Enumerable.fromArray(p).groupBy(function (p) {
+    return p.age > 25;
+}).select(function (g) {
+    return g.sum(function (a) {
+        return a.age;
+    });
 });
 
 console.log(l);
+Object.prototype.may = function () {
+    return new Opt(this);
+};
+
+Number.prototype.may = function () {
+    return new Opt(this);
+};
+
+String.prototype.may = function () {
+    return new Opt(this);
+};
+
+var Opt = (function () {
+    function Opt(value, hasValue) {
+        if (typeof hasValue === "undefined") { hasValue = true; }
+        this.valueStore = value;
+        this.valueSet = hasValue;
+    }
+    Object.defineProperty(Opt.prototype, "hasValue", {
+        get: function () {
+            return this.valueSet;
+        },
+        enumerable: true,
+        configurable: true
+    });
+
+    Object.defineProperty(Opt.prototype, "value", {
+        get: function () {
+            return this.hasValue ? this.valueStore : (this.otherwiseFunc ? this.otherwiseFunc() : this.valueStore);
+        },
+        set: function (val) {
+            this.valueStore = val;
+            this.valueSet = true;
+        },
+        enumerable: true,
+        configurable: true
+    });
+
+
+    Opt.prototype.otherwise = function (other) {
+        this.otherwiseFunc = other;
+        return this;
+    };
+
+    Opt.noVal = function () {
+        return new Opt(null, false);
+    };
+    return Opt;
+})();
+//# sourceMappingURL=app.js.map

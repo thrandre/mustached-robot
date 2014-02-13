@@ -21,20 +21,19 @@ class ConsoleGreeter implements IMedium {
 	}
 }
 
-class TestClass {
-    constructor(public name: string, public age: number) {}
+class Person {
+    constructor(public name: string, public age: number, public gender: string) {}
 }
 
-var l = Enumerable.fromArray([1, 2, 3, 4, 5]).orderByAscending((i1, i2) => {
-	if(i1 === i2){
-		return 0;
-	}
-	
-	if(i1 > i2) {
-		return -1;
-	}
-	
-	return 1;
-});
+var p = [
+    new Person("Caroline", 24, "female"),
+    new Person("Thomas", 26, "male"),
+    new Person("Lasse", 21, "male")
+];
+
+var l = Enumerable
+    .fromArray(p)
+    .groupBy(p=> p.age > 25)
+    .select(g=> g.sum(a => a.age));
 
 console.log(l);
