@@ -2,13 +2,13 @@ var dependencies = {
 	"IMedium": [
 		{
 			classReference: "ConsoleGreeter",
-			deps: []
+			dependencies: []
 		}	
 	],
 	"IGreeter": [
 		{
 			classReference: "Greeter",
-			deps: ["IMedium"]
+			dependencies: ["IMedium"]
 		}
 	]
 };

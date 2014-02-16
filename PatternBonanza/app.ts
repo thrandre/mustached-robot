@@ -1,4 +1,4 @@
-/// <reference path="linq.ts"/>
+import IoC = require("ioc");
 
 interface IMedium { 
 	write(greeting: string): void;
@@ -31,9 +31,22 @@ var p = [
     new Person("Lasse", 21, "male")
 ];
 
-var l = Enumerable
-    .fromArray(p)
-    .groupBy(p=> p.age > 25)
-    .select(g=> g.sum(a => a.age));
+//var l = Enumerable
+//    .fromArray(p)
+//    .groupBy(p=> p.age > 25)
+//    .select(g=> g.sum(a => a.age));
 
-console.log(l);
+//console.log(l);
+
+console.log("WORKS!");
+
+interface IIInterface {
+    interfaceName: string;
+}
+
+class IIGreeter extends IoC.IInterface<IGreeter> implements IIInterface {
+    public interfaceName = "IGreeter";
+}
+
+var r = IoC.resolve(new IIGreeter(), () => null);
+r.greet("Thomas");

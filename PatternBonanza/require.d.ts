@@ -1,0 +1,1 @@
+ declare function require(deps: string[], callback: Function): void;
