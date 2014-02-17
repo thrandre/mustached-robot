@@ -28,7 +28,9 @@
     <TypeScriptCompile Include="common.ts" />
     <TypeScriptCompile Include="ioc.ts" />
     <TypeScriptCompile Include="linq.ts" />
+    <TypeScriptCompile Include="deferred.ts" />
     <TypeScriptCompile Include="require.d.ts" />
+    <TypeScriptCompile Include="test.ts" />
   </ItemGroup>
   <ItemGroup>
     <None Include="web.Debug.config">

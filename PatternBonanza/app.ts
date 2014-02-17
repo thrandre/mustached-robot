@@ -31,22 +31,32 @@ var p = [
     new Person("Lasse", 21, "male")
 ];
 
-//var l = Enumerable
-//    .fromArray(p)
-//    .groupBy(p=> p.age > 25)
-//    .select(g=> g.sum(a => a.age));
-
-//console.log(l);
-
 console.log("WORKS!");
 
-interface IIInterface {
-    interfaceName: string;
-}
-
-class IIGreeter extends IoC.IInterface<IGreeter> implements IIInterface {
+class IIGreeter extends IoC.InterfaceTypeEnforcer<IGreeter> implements IoC.Interface {
     public interfaceName = "IGreeter";
 }
 
-var r = IoC.resolve(new IIGreeter(), () => null);
-r.greet("Thomas");
+//class DeferredFactory implements IoC.IDeferredFactory {
+//    create<T>(): IoC.IDeferred<T> {
+//        var d = new Deferred.Deferred<T>();
+//        return {
+//            promise: d.promise(),
+//            resolve: d.resolve(),
+//            reject: d.reject()
+//        };
+//    }
+//}
+//
+//class ModuleLoader implements  IoC.IModuleLoader {
+//    load(deps: string[], callback: any): void {
+//        require(deps, callback);
+//    }
+//}
+//
+//IoC.setup({
+//    moduleLoader: new ModuleLoader(),
+//    deferredFactory: new DeferredFactory()
+//});
+//
+//IoC.resolve(new IIGreeter(), (greeter) => greeter.greet("Thomas"));

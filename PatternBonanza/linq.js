@@ -43,14 +43,14 @@ define(["require", "exports"], function(require, exports) {
 
     var FilterAggregator = (function () {
         function FilterAggregator() {
-            this.storage = [];
+            this._storage = [];
         }
         FilterAggregator.prototype.aggregate = function (item) {
-            this.storage.push(item);
+            this._storage.push(item);
         };
 
         FilterAggregator.prototype.getResult = function () {
-            return Enumerable.fromArray(this.storage);
+            return Enumerable.fromArray(this._storage);
         };
         return FilterAggregator;
     })();
@@ -61,11 +61,11 @@ define(["require", "exports"], function(require, exports) {
             this.aggregatorFunction = aggregatorFunction;
         }
         AggregationAggregator.prototype.aggregate = function (item) {
-            this.storage = this.aggregatorFunction(this.storage, this.selector(item));
+            this._storage = this.aggregatorFunction(this._storage, this.selector(item));
         };
 
         AggregationAggregator.prototype.getResult = function () {
-            return this.storage;
+            return this._storage;
         };
         return AggregationAggregator;
     })();
@@ -73,17 +73,17 @@ define(["require", "exports"], function(require, exports) {
     var GroupingAggregator = (function () {
         function GroupingAggregator(selector) {
             this.selector = selector;
-            this.storage = [];
+            this._storage = [];
         }
         GroupingAggregator.prototype.bucket = function (item) {
             var key = this.selector(item);
-            var bucket = Enumerable.fromArray(this.storage).firstOrDefault(function (b) {
+            var bucket = Enumerable.fromArray(this._storage).firstOrDefault(function (b) {
                 return b.key === key;
             });
 
             if (bucket === null || typeof bucket === "undefined") {
                 bucket = new Grouping(key);
-                this.storage.push(bucket);
+                this._storage.push(bucket);
             }
 
             bucket.add(item);
@@ -94,7 +94,7 @@ define(["require", "exports"], function(require, exports) {
         };
 
         GroupingAggregator.prototype.getResult = function () {
-            return Enumerable.fromArray(this.storage);
+            return Enumerable.fromArray(this._storage);
         };
         return GroupingAggregator;
     })();
@@ -103,7 +103,7 @@ define(["require", "exports"], function(require, exports) {
         function SortingAggregator(selector, sortOrder) {
             this.selector = selector;
             this.sortOrder = sortOrder;
-            this.storage = [];
+            this._storage = [];
         }
         SortingAggregator.prototype.getComparer = function () {
             return this.sortOrder === 0 /* Ascending */ ? function (i1, i2) {
@@ -118,7 +118,7 @@ define(["require", "exports"], function(require, exports) {
             var comparer = this.getComparer();
             var pos = 0;
 
-            Enumerable.fromArray(this.storage).firstOrDefault(function (item2) {
+            Enumerable.fromArray(this._storage).firstOrDefault(function (item2) {
                 if (comparer(_this.selector(item1), _this.selector(item2))) {
                     pos++;
                     return false;
@@ -130,11 +130,11 @@ define(["require", "exports"], function(require, exports) {
         };
 
         SortingAggregator.prototype.aggregate = function (item) {
-            this.storage.splice(this.getInsertionPosition(item), 0, item);
+            this._storage.splice(this.getInsertionPosition(item), 0, item);
         };
 
         SortingAggregator.prototype.getResult = function () {
-            return Enumerable.fromArray(this.storage);
+            return Enumerable.fromArray(this._storage);
         };
         return SortingAggregator;
     })();
@@ -330,12 +330,12 @@ define(["require", "exports"], function(require, exports) {
 
     var ArrayEnumerator = (function () {
         function ArrayEnumerator(accessor) {
-            this.currentIndex = 0;
-            this.accessor = accessor;
+            this._currentIndex = 0;
+            this._accessor = accessor;
         }
         Object.defineProperty(ArrayEnumerator.prototype, "current", {
             get: function () {
-                return this.accessor(this.currentIndex);
+                return this._accessor(this._currentIndex);
             },
             enumerable: true,
             configurable: true
@@ -345,7 +345,7 @@ define(["require", "exports"], function(require, exports) {
             var next = this.current;
 
             if (next) {
-                this.currentIndex++;
+                this._currentIndex++;
                 return next;
             }
 
@@ -353,7 +353,7 @@ define(["require", "exports"], function(require, exports) {
         };
 
         ArrayEnumerator.prototype.reset = function () {
-            this.currentIndex = 0;
+            this._currentIndex = 0;
         };
         return ArrayEnumerator;
     })();

@@ -1,22 +1,39 @@
 ///<reference path="require.d.ts"/>
 
-export class IInterface<T> {
-    enforcer: T;
+export interface Interface {
+    interfaceName: string;
 }
 
 export interface IResolvedCallback<T> {
     (instance: T): void;
 }
 
-export function resolve<T>(iinterface: IInterface<T>, resolvedCallback: IResolvedCallback<T>): T {
+interface IInterfaceImplementation {
+    classReference: string;
+    dependencies: string[];
+    instantiator: () => any;
+    prefered: boolean;
+    scope: Scope;
+}
+
+export enum Scope {
+    Instance,
+    Singleton
+}
+
+export class InterfaceTypeEnforcer<T> {
+    enforcer: T;
+}
+
+export function setup(settings: IoCContainerSettings) {
+    IoCContainer.current().settings = settings;
+}
+
+export function resolve<T>(iinterface: InterfaceTypeEnforcer<T>, resolvedCallback: IResolvedCallback<T>): T {
     return null;
 }
 
-function resolveAll<T>(): T[] {
-    return null;
-}
-
-function register(): void {
+function register<T>(iinterface: InterfaceTypeEnforcer<T>, instance: T): void {
 
 }
 
@@ -51,13 +68,51 @@ class Resolver {
     }
 }
 
+export interface IRejection {
+    message: string;
+}
+
+export interface IPromise<T> {
+    
+}
+
+export interface IDeferred<T> {
+    promise(): IPromise<T>;
+    resolve(result: T): IDeferred<T>;
+    reject(): IDeferred<T>;
+}
+
+export interface IDeferredFactory {
+    create<T>() : IDeferred<T>;
+}
+
+export interface IModuleLoader {
+    load(deps: string[], callback: any): void;
+}
+
+export interface IoCContainerSettings {
+    moduleLoader: IModuleLoader;
+    deferredFactory: IDeferredFactory;
+}
+
 class IoCContainer {
     static instance: IoCContainer = null;
 
-    static current(): IoCContainer {
+    static current(settings?: IoCContainerSettings): IoCContainer {
         return IoCContainer.instance
             ? IoCContainer.instance
             : (IoCContainer.instance = new IoCContainer());
+    }
+
+    private containerSettings: IoCContainerSettings = null;
+    get settings(): IoCContainerSettings {
+        if (!this.containerSettings) {
+            throw new Error("The container is not configured.");
+        }
+        return this.containerSettings;
+    }
+    set settings(settings: IoCContainerSettings) {
+        this.containerSettings = settings;
     }
 
     private graph: { [id: string]: IInterfaceImplementation[] } = {};
@@ -80,11 +135,4 @@ class IoCContainer {
             }
         }
     }
-}
-
-interface IInterfaceImplementation {
-    classReference: string;
-    dependencies: string[];
-    instantiator: ()=> any;
-    prefered: boolean;
 }

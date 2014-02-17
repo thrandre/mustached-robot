@@ -39,11 +39,6 @@ define(["require", "exports", "ioc"], function(require, exports, IoC) {
         new Person("Lasse", 21, "male")
     ];
 
-    //var l = Enumerable
-    //    .fromArray(p)
-    //    .groupBy(p=> p.age > 25)
-    //    .select(g=> g.sum(a => a.age));
-    //console.log(l);
     console.log("WORKS!");
 
     var IIGreeter = (function (_super) {
@@ -53,11 +48,6 @@ define(["require", "exports", "ioc"], function(require, exports, IoC) {
             this.interfaceName = "IGreeter";
         }
         return IIGreeter;
-    })(IoC.Test);
-
-    var greeter = IoC.resolve(new IIGreeter(), function (i) {
-        return console.log(i);
-    });
-    greeter.greet();
+    })(IoC.InterfaceTypeEnforcer);
 });
 //# sourceMappingURL=app.js.map

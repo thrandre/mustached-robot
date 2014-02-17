@@ -74,41 +74,41 @@ export interface IAggregator<TIn, TOut> {
 }
     
 class FilterAggregator<TIn> implements IAggregator<TIn, IEnumerable<TIn>> {
-    private storage: TIn[] = [];
+    private _storage: TIn[] = [];
         
     public aggregate(item: TIn): void {
-        this.storage.push(item);    
+        this._storage.push(item);    
     }
         
     public getResult(): IEnumerable<TIn> {
-        return Enumerable.fromArray(this.storage);
+        return Enumerable.fromArray(this._storage);
     }
 }
     
 class AggregationAggregator<TIn, TOut> implements IAggregator<TIn, TOut> {
-    private storage: TOut;
+    private _storage: TOut;
 
     public aggregate(item: TIn): void {
-        this.storage = this.aggregatorFunction(this.storage, this.selector(item));
+        this._storage = this.aggregatorFunction(this._storage, this.selector(item));
     }
         
     public getResult(): TOut {
-        return this.storage;
+        return this._storage;
     }
 
     constructor(private selector: ISelector<TIn, TOut>, private aggregatorFunction: IAggregatorFunction<TOut>) {}
 }
 
 class GroupingAggregator<TIn, TOut> implements IAggregator<TIn, IEnumerable<IGrouping<TIn, TOut>>> {
-    private storage: Grouping<TIn, TOut>[] = [];
+    private _storage: Grouping<TIn, TOut>[] = [];
 
     private bucket(item: TIn): void {
         var key = this.selector(item);
-        var bucket = Enumerable.fromArray(this.storage).firstOrDefault(b => b.key === key);
+        var bucket = Enumerable.fromArray(this._storage).firstOrDefault(b => b.key === key);
 
         if (bucket === null || typeof bucket === "undefined") {
             bucket = new Grouping<TIn, TOut>(key);
-            this.storage.push(bucket);
+            this._storage.push(bucket);
         }
 
         bucket.add(item);
@@ -119,14 +119,14 @@ class GroupingAggregator<TIn, TOut> implements IAggregator<TIn, IEnumerable<IGro
     }
 
     public getResult(): IEnumerable<IGrouping<TIn, TOut>> {
-        return Enumerable.fromArray(this.storage);
+        return Enumerable.fromArray(this._storage);
     }
 
     constructor(private selector: ISelector<TIn, TOut>) { }
 }
 
 class SortingAggregator<TIn, TOut> implements IAggregator<TIn, IEnumerable<TIn>> {
-    private storage: TIn[] = [];
+    private _storage: TIn[] = [];
 
     private getComparer(): IComparerFunction<TOut> {
         return this.sortOrder === SortOrder.Ascending
@@ -138,7 +138,7 @@ class SortingAggregator<TIn, TOut> implements IAggregator<TIn, IEnumerable<TIn>>
         var comparer = this.getComparer();
         var pos = 0;
 
-        Enumerable.fromArray(this.storage).firstOrDefault(item2=> {
+        Enumerable.fromArray(this._storage).firstOrDefault(item2=> {
             if (comparer(this.selector(item1), this.selector(item2))) {
                 pos++;
                 return false;
@@ -150,11 +150,11 @@ class SortingAggregator<TIn, TOut> implements IAggregator<TIn, IEnumerable<TIn>>
     }
 
     public aggregate(item: TIn): void {
-        this.storage.splice(this.getInsertionPosition(item), 0, item);
+        this._storage.splice(this.getInsertionPosition(item), 0, item);
     }
 
     public getResult(): IEnumerable<TIn> {
-        return Enumerable.fromArray(this.storage);
+        return Enumerable.fromArray(this._storage);
     }
 
     constructor(private selector: ISelector<TIn, TOut>, private sortOrder: SortOrder) {}
@@ -352,18 +352,18 @@ export interface IEnumerator<TIn> {
 }
     
 class ArrayEnumerator<TIn> implements IEnumerator<TIn> {
-    private currentIndex: number;
-    private accessor: (index: number)=> TIn;
+    private _currentIndex: number;
+    private _accessor: (index: number)=> TIn;
     
     get current(): TIn {
-        return this.accessor(this.currentIndex);
+        return this._accessor(this._currentIndex);
     }
     
     public next(): TIn {
         var next = this.current;
     
         if (next) {
-            this.currentIndex++;
+            this._currentIndex++;
             return next;
         }
     
@@ -371,11 +371,11 @@ class ArrayEnumerator<TIn> implements IEnumerator<TIn> {
     }
     
     public reset(): void {
-        this.currentIndex = 0;
+        this._currentIndex = 0;
     }
     
     constructor(accessor: (index: number)=> TIn) {
-        this.currentIndex = 0;
-        this.accessor = accessor;
+        this._currentIndex = 0;
+        this._accessor = accessor;
     }
 }

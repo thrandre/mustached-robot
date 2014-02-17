@@ -2,16 +2,30 @@
 define(["require", "exports"], function(require, exports) {
     
 
+    (function (Scope) {
+        Scope[Scope["Instance"] = 0] = "Instance";
+        Scope[Scope["Singleton"] = 1] = "Singleton";
+    })(exports.Scope || (exports.Scope = {}));
+    var Scope = exports.Scope;
+
+    var InterfaceTypeEnforcer = (function () {
+        function InterfaceTypeEnforcer() {
+        }
+        return InterfaceTypeEnforcer;
+    })();
+    exports.InterfaceTypeEnforcer = InterfaceTypeEnforcer;
+
+    function setup(settings) {
+        IoCContainer.current().settings = settings;
+    }
+    exports.setup = setup;
+
     function resolve(iinterface, resolvedCallback) {
         return null;
     }
     exports.resolve = resolve;
 
-    function resolveAll() {
-        return null;
-    }
-
-    function register() {
+    function register(iinterface, instance) {
     }
 
     function autoResolve(descriptorObject) {
@@ -53,11 +67,26 @@ define(["require", "exports"], function(require, exports) {
 
     var IoCContainer = (function () {
         function IoCContainer() {
+            this.containerSettings = null;
             this.graph = {};
         }
-        IoCContainer.current = function () {
+        IoCContainer.current = function (settings) {
             return IoCContainer.instance ? IoCContainer.instance : (IoCContainer.instance = new IoCContainer());
         };
+
+        Object.defineProperty(IoCContainer.prototype, "settings", {
+            get: function () {
+                if (!this.containerSettings) {
+                    throw new Error("The container is not configured.");
+                }
+                return this.containerSettings;
+            },
+            set: function (settings) {
+                this.containerSettings = settings;
+            },
+            enumerable: true,
+            configurable: true
+        });
 
         IoCContainer.prototype.addImplementationToGraph = function (interfaceName, implementation) {
             if (!this.graph[interfaceName]) {
