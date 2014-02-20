@@ -1,21 +1,24 @@
+/// <reference path="deferred/deferred.d.ts"/>
+
+import D = require("deferred/deferred");
 import IoC = require("ioc");
 
-interface IMedium { 
+export interface IMedium { 
 	write(greeting: string): void;
 }
 
-interface IGreeter {
+export interface IGreeter {
 	greet(name: string);
 }
 
-class Greeter implements IGreeter {
+export class Greeter implements IGreeter {
 	constructor(public medium: IMedium) {}
 	public greet(name: string): void {
 		this.medium.write("Hello " + name);
 	}
 }
 
-class ConsoleGreeter implements IMedium {
+export class ConsoleGreeter implements IMedium {
 	public write(greeting: string): void {
 		console.log(greeting);
 	}
@@ -31,32 +34,23 @@ var p = [
     new Person("Lasse", 21, "male")
 ];
 
-console.log("WORKS!");
-
-class IIGreeter extends IoC.InterfaceTypeEnforcer<IGreeter> implements IoC.Interface {
+class IIGreeter extends IoC.IInterface<IGreeter> {
     public interfaceName = "IGreeter";
 }
 
-//class DeferredFactory implements IoC.IDeferredFactory {
-//    create<T>(): IoC.IDeferred<T> {
-//        var d = new Deferred.Deferred<T>();
-//        return {
-//            promise: d.promise(),
-//            resolve: d.resolve(),
-//            reject: d.reject()
-//        };
-//    }
-//}
-//
-//class ModuleLoader implements  IoC.IModuleLoader {
-//    load(deps: string[], callback: any): void {
-//        require(deps, callback);
-//    }
-//}
-//
-//IoC.setup({
-//    moduleLoader: new ModuleLoader(),
-//    deferredFactory: new DeferredFactory()
-//});
-//
-//IoC.resolve(new IIGreeter(), (greeter) => greeter.greet("Thomas"));
+class IIDeferredFactory extends IoC.IInterface<Deferred.IDeferredFactory> {
+    public interfaceName = "IDeferredFactory";
+}
+
+IoC.autoResolve(window["dependencies"]);
+
+var greeter = IoC.resolve(new IIGreeter());
+var factory = IoC.resolve(new IIDeferredFactory());
+
+D.when(greeter, factory).then(instances => {
+    var g: IGreeter = instances[0];
+    var f: Deferred.IDeferredFactory = instances[1];
+
+    g.greet("Thomas");
+    console.log(f);
+});

@@ -1,3 +1,4 @@
+/// <reference path="deferred.d.ts"/>
 define(["require", "exports"], function(require, exports) {
     var DeferredFactory = (function () {
         function DeferredFactory() {
@@ -9,19 +10,19 @@ define(["require", "exports"], function(require, exports) {
     })();
     exports.DeferredFactory = DeferredFactory;
 
-    var Rejection = (function () {
-        function Rejection() {
-        }
-        return Rejection;
-    })();
-    exports.Rejection = Rejection;
-
     (function (Status) {
         Status[Status["Unfulfilled"] = 0] = "Unfulfilled";
         Status[Status["Resolved"] = 1] = "Resolved";
         Status[Status["Rejected"] = 2] = "Rejected";
     })(exports.Status || (exports.Status = {}));
     var Status = exports.Status;
+
+    var Rejection = (function () {
+        function Rejection() {
+        }
+        return Rejection;
+    })();
+    exports.Rejection = Rejection;
 
     function whenAll(promises) {
         return exports.when.apply(this, promises);
@@ -186,8 +187,6 @@ define(["require", "exports"], function(require, exports) {
             return this;
         };
 
-        // => T2
-        // => IPromise<T2>
         Deferred.prototype.then = function (cb) {
             var d = new Deferred();
 

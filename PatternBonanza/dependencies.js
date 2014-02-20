@@ -1,16 +1,26 @@
 var dependencies = {
-	"IMedium": [
-		{
-			classReference: "ConsoleGreeter",
-			dependencies: [],
-			scope: 0 /* 0 = instance, 1 = singleton */
-		}	
-	],
 	"IGreeter": [
 		{
+			module: "app",
 			classReference: "Greeter",
 			dependencies: ["IMedium"],
-			scope: 0 /* 0 = instance, 1 = singleton */
+			scope: 0
+		}
+	],
+	"IMedium": [
+		{
+			module: "app",
+			classReference: "ConsoleGreeter",
+			dependencies: [],
+			scope: 0
+		}
+	],
+	"IDeferredFactory": [
+		{
+			module: "deferred",
+			classReference: "DeferredFactory",
+			dependencies: [],
+			scope: 0
 		}
 	]
 };

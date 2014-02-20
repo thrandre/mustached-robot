@@ -26,9 +26,10 @@
   <ItemGroup>
     <TypeScriptCompile Include="app.ts" />
     <TypeScriptCompile Include="common.ts" />
+    <TypeScriptCompile Include="deferred\deferred.d.ts" />
     <TypeScriptCompile Include="ioc.ts" />
     <TypeScriptCompile Include="linq.ts" />
-    <TypeScriptCompile Include="deferred.ts" />
+    <TypeScriptCompile Include="deferred\deferred.ts" />
     <TypeScriptCompile Include="require.d.ts" />
     <TypeScriptCompile Include="test.ts" />
   </ItemGroup>

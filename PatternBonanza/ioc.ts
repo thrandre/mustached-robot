@@ -1,19 +1,8 @@
-///<reference path="require.d.ts"/>
-
-export interface Interface {
-    interfaceName: string;
-}
+/// <reference path="require.d.ts"/>
+/// <reference path="deferred/deferred.d.ts"/>
 
 export interface IResolvedCallback<T> {
     (instance: T): void;
-}
-
-interface IInterfaceImplementation {
-    classReference: string;
-    dependencies: string[];
-    instantiator: () => any;
-    prefered: boolean;
-    scope: Scope;
 }
 
 export enum Scope {
@@ -21,118 +10,136 @@ export enum Scope {
     Singleton
 }
 
-export class InterfaceTypeEnforcer<T> {
+export class IInterface<T> {
+    interfaceName: string;
     enforcer: T;
 }
 
-export function setup(settings: IoCContainerSettings) {
-    IoCContainer.current().settings = settings;
+export function resolve<T>(iinterface: IInterface<T>): Deferred.IPromise<T> {
+    return IoCContainer.current().resolve(iinterface.interfaceName);
 }
 
-export function resolve<T>(iinterface: InterfaceTypeEnforcer<T>, resolvedCallback: IResolvedCallback<T>): T {
-    return null;
-}
-
-function register<T>(iinterface: InterfaceTypeEnforcer<T>, instance: T): void {
+function register<T>(iinterface: IInterface<T>, instance: T): void {
 
 }
 
-function autoResolve(descriptorObject: { [id: string]: IInterfaceImplementation[] }): void {
-    IoCContainer.current().resolveFromDescriptor(descriptorObject);
+export function autoResolve(descriptorObject: { [id: string]: IImplementationRecord[] }): void {
+    IoCContainer.current().registerFromDescriptor(descriptorObject);
 }
 
-class Resolver {
-    private getClassInstantiator(classReference: string, args: any[]): ()=> any {
-        var wrapper = (f, a)=> {
+class InstanceResolver {
+    constructor(private _graph: InterfaceGraph, private _deferredFactory: Deferred.IDeferredFactory) {}
+
+    public loadModule(moduleName: string): Deferred.IPromise<any> {
+        var deferred = this._deferredFactory.create();
+        require([moduleName], m => deferred.resolve(m));
+        return deferred.promise();
+    }
+
+    public getInstantiator(module: string, classReference: string, args: any[]): () => any {
+        var instantiatorWrapper = (f, a) => {
             var params = [f].concat(a);
             return f.bind.apply(f, params);
         };
 
-        return ()=> new (wrapper(eval(classReference), args));
-    }
-
-    private getImplementationForInterface(interfaceName: string): IInterfaceImplementation {
-        return null;
-    }
-
-    private getResolver(interfaceName: string): ()=> any {
-        var impl = this.getImplementationForInterface(interfaceName);
-        return ()=> {
-            var deps = [];
-            for (var dep in impl.dependencies) {
-                deps.push(this.getResolver(impl.dependencies[dep])());
-            }
-
-            return this.getClassInstantiator(impl.classReference, deps)();
+        return () => {
+            return this.loadModule(module).then(m => {
+                return new (instantiatorWrapper(m[classReference], args));
+            });
         };
     }
-}
 
-export interface IRejection {
-    message: string;
-}
+    public resolveDependencies(interfaceName: string): () => Deferred.IPromise<any> {
+        return this.resolveImpl(this.getImpl(interfaceName));
+    }
 
-export interface IPromise<T> {
-    
-}
+    public resolveImpl(implRecord: IImplementationRecord): () => Deferred.IPromise<any> {
+        return () => {
+            var deps: Deferred.IPromise<any>[] = [];
 
-export interface IDeferred<T> {
-    promise(): IPromise<T>;
-    resolve(result: T): IDeferred<T>;
-    reject(): IDeferred<T>;
-}
+            for (var x in implRecord.dependencies)
+                deps.push(this.resolveDependencies(implRecord.dependencies[x])());
 
-export interface IDeferredFactory {
-    create<T>() : IDeferred<T>;
-}
+            return Deferred.whenAll(deps).then(args =>
+                this.getInstantiator(implRecord.module, implRecord.classReference, args)());
+        };
+    }
 
-export interface IModuleLoader {
-    load(deps: string[], callback: any): void;
-}
+    public getImpl(interfaceName: string): IImplementationRecord {
+        var impls = this._graph.getInterface(interfaceName);
+        for (var i in impls)
+            if (impls[i].prefered)
+                return impls[i];
 
-export interface IoCContainerSettings {
-    moduleLoader: IModuleLoader;
-    deferredFactory: IDeferredFactory;
+        return impls[0];
+    }
 }
 
 class IoCContainer {
     static instance: IoCContainer = null;
 
-    static current(settings?: IoCContainerSettings): IoCContainer {
+    static current(): IoCContainer {
         return IoCContainer.instance
             ? IoCContainer.instance
             : (IoCContainer.instance = new IoCContainer());
     }
 
-    private containerSettings: IoCContainerSettings = null;
-    get settings(): IoCContainerSettings {
-        if (!this.containerSettings) {
-            throw new Error("The container is not configured.");
-        }
-        return this.containerSettings;
-    }
-    set settings(settings: IoCContainerSettings) {
-        this.containerSettings = settings;
+    private _interfaceGraph: InterfaceGraph;
+    private _resolver: InstanceResolver;
+
+    constructor() {
+        this._interfaceGraph = new InterfaceGraph();
+        this._resolver = new InstanceResolver(this._interfaceGraph);
     }
 
-    private graph: { [id: string]: IInterfaceImplementation[] } = {};
-
-    private addImplementationToGraph(interfaceName: string, implementation: IInterfaceImplementation): void {
-        if (!this.graph[interfaceName]) {
-            this.graph[interfaceName] = [];
-        }
-        this.graph[interfaceName].push(implementation);
+    public resolve(interfaceName: string): IPromise<any> {
+        return this._resolver.getImpl(interfaceName).instantiate();
     }
 
-    public resolveFromDescriptor(descriptorObject: { [id: string]: IInterfaceImplementation[] }): void {
-        for (var x in descriptorObject) {
-            for (var y in descriptorObject[x]) {
-                var impl = descriptorObject[x][y];
-                if (impl) {
-                    //impl.instantiator = ()=> this.getResolver(x);
-                    //this.addImplementationToGraph(x, impl);
-                }
+    public registerFromDescriptor(descriptor: IInterfaceStore): void {
+        for (var x in descriptor) {
+            for (var y in descriptor[x]) {
+                var impl = descriptor[x][y];
+                impl.instantiate = this._resolver.resolveImpl(impl);
+                this._interfaceGraph.addImplementation(x, impl);
             }
         }
     }
+}
+
+class InterfaceGraph {
+    private _store: IInterfaceStore = {};
+
+    public interfaceDeclared(name: string): boolean {
+        return !!this._store[name];
+    }
+
+    public getInterface(name: string): IImplementationRecord[] {
+        return this._store[name];
+    }
+
+    public addInterface(name: string): void {
+        if (this.interfaceDeclared(name))
+            return;
+        this._store[name] = [];
+    }
+
+    public addImplementation(interfaceName: string, impl: IImplementationRecord): void {
+        this.addInterface(interfaceName);
+        this._store[interfaceName].push(impl);
+    }
+}
+
+export interface IImplementationRecord {
+    module: string;
+    classReference: string;
+    dependencies: string[];
+    scope: Scope;
+
+    prefered: boolean;
+    instantiate: () => IPromise<any>;
+}
+
+interface IInterfaceStore {
+    [id: string]: IImplementationRecord[];
 }

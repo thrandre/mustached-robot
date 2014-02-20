@@ -1,4 +1,5 @@
-///<reference path="require.d.ts"/>
+/// <reference path="require.d.ts"/>
+/// <reference path="deferred/deferred.d.ts"/>
 define(["require", "exports"], function(require, exports) {
     
 
@@ -8,20 +9,15 @@ define(["require", "exports"], function(require, exports) {
     })(exports.Scope || (exports.Scope = {}));
     var Scope = exports.Scope;
 
-    var InterfaceTypeEnforcer = (function () {
-        function InterfaceTypeEnforcer() {
+    var IInterface = (function () {
+        function IInterface() {
         }
-        return InterfaceTypeEnforcer;
+        return IInterface;
     })();
-    exports.InterfaceTypeEnforcer = InterfaceTypeEnforcer;
+    exports.IInterface = IInterface;
 
-    function setup(settings) {
-        IoCContainer.current().settings = settings;
-    }
-    exports.setup = setup;
-
-    function resolve(iinterface, resolvedCallback) {
-        return null;
+    function resolve(iinterface) {
+        return IoCContainer.current().resolve(iinterface.interfaceName);
     }
     exports.resolve = resolve;
 
@@ -29,85 +25,115 @@ define(["require", "exports"], function(require, exports) {
     }
 
     function autoResolve(descriptorObject) {
-        IoCContainer.current().resolveFromDescriptor(descriptorObject);
+        IoCContainer.current().registerFromDescriptor(descriptorObject);
     }
+    exports.autoResolve = autoResolve;
 
-    var Resolver = (function () {
-        function Resolver() {
+    var InstanceResolver = (function () {
+        function InstanceResolver(_graph, _deferredFactory) {
+            this._graph = _graph;
+            this._deferredFactory = _deferredFactory;
         }
-        Resolver.prototype.getClassInstantiator = function (classReference, args) {
-            var wrapper = function (f, a) {
+        InstanceResolver.prototype.loadModule = function (moduleName) {
+            var deferred = this._deferredFactory.create();
+            require([moduleName], function (m) {
+                return deferred.resolve(m);
+            });
+            return deferred.promise();
+        };
+
+        InstanceResolver.prototype.getInstantiator = function (module, classReference, args) {
+            var _this = this;
+            var instantiatorWrapper = function (f, a) {
                 var params = [f].concat(a);
                 return f.bind.apply(f, params);
             };
 
             return function () {
-                return new (wrapper(eval(classReference), args));
+                return _this.loadModule(module).then(function (m) {
+                    return new (instantiatorWrapper(m[classReference], args));
+                });
             };
         };
 
-        Resolver.prototype.getImplementationForInterface = function (interfaceName) {
-            return null;
+        InstanceResolver.prototype.resolveDependencies = function (interfaceName) {
+            return this.resolveImpl(this.getImpl(interfaceName));
         };
 
-        Resolver.prototype.getResolver = function (interfaceName) {
+        InstanceResolver.prototype.resolveImpl = function (implRecord) {
             var _this = this;
-            var impl = this.getImplementationForInterface(interfaceName);
             return function () {
                 var deps = [];
-                for (var dep in impl.dependencies) {
-                    deps.push(_this.getResolver(impl.dependencies[dep])());
-                }
 
-                return _this.getClassInstantiator(impl.classReference, deps)();
+                for (var x in implRecord.dependencies)
+                    deps.push(_this.resolveDependencies(implRecord.dependencies[x])());
+
+                return Deferred.whenAll(deps).then(function (args) {
+                    return _this.getInstantiator(implRecord.module, implRecord.classReference, args)();
+                });
             };
         };
-        return Resolver;
+
+        InstanceResolver.prototype.getImpl = function (interfaceName) {
+            var impls = this._graph.getInterface(interfaceName);
+            for (var i in impls)
+                if (impls[i].prefered)
+                    return impls[i];
+
+            return impls[0];
+        };
+        return InstanceResolver;
     })();
 
     var IoCContainer = (function () {
         function IoCContainer() {
-            this.containerSettings = null;
-            this.graph = {};
+            this._interfaceGraph = new InterfaceGraph();
+            this._resolver = new InstanceResolver(this._interfaceGraph);
         }
-        IoCContainer.current = function (settings) {
+        IoCContainer.current = function () {
             return IoCContainer.instance ? IoCContainer.instance : (IoCContainer.instance = new IoCContainer());
         };
 
-        Object.defineProperty(IoCContainer.prototype, "settings", {
-            get: function () {
-                if (!this.containerSettings) {
-                    throw new Error("The container is not configured.");
-                }
-                return this.containerSettings;
-            },
-            set: function (settings) {
-                this.containerSettings = settings;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        IoCContainer.prototype.addImplementationToGraph = function (interfaceName, implementation) {
-            if (!this.graph[interfaceName]) {
-                this.graph[interfaceName] = [];
-            }
-            this.graph[interfaceName].push(implementation);
+        IoCContainer.prototype.resolve = function (interfaceName) {
+            return this._resolver.getImpl(interfaceName).instantiate();
         };
 
-        IoCContainer.prototype.resolveFromDescriptor = function (descriptorObject) {
-            for (var x in descriptorObject) {
-                for (var y in descriptorObject[x]) {
-                    var impl = descriptorObject[x][y];
-                    if (impl) {
-                        //impl.instantiator = ()=> this.getResolver(x);
-                        //this.addImplementationToGraph(x, impl);
-                    }
+        IoCContainer.prototype.registerFromDescriptor = function (descriptor) {
+            for (var x in descriptor) {
+                for (var y in descriptor[x]) {
+                    var impl = descriptor[x][y];
+                    impl.instantiate = this._resolver.resolveImpl(impl);
+                    this._interfaceGraph.addImplementation(x, impl);
                 }
             }
         };
         IoCContainer.instance = null;
         return IoCContainer;
+    })();
+
+    var InterfaceGraph = (function () {
+        function InterfaceGraph() {
+            this._store = {};
+        }
+        InterfaceGraph.prototype.interfaceDeclared = function (name) {
+            return !!this._store[name];
+        };
+
+        InterfaceGraph.prototype.getInterface = function (name) {
+            return this._store[name];
+        };
+
+        InterfaceGraph.prototype.addInterface = function (name) {
+            if (this.interfaceDeclared(name))
+                return;
+            this._store[name] = [];
+        };
+
+        InterfaceGraph.prototype.addImplementation = function (interfaceName, impl) {
+            this.addInterface(interfaceName);
+            this._store[interfaceName].push(impl);
+        };
+        return InterfaceGraph;
     })();
 });
 //# sourceMappingURL=ioc.js.map
