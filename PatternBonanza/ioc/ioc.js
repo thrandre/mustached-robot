@@ -22,9 +22,18 @@ define(["require", "exports"], function(require, exports) {
     exports.setup = setup;
 
     function resolve(iinterface) {
-        return IoCContainer.current().resolve(iinterface.interfaceName);
+        return IoCContainer.current().resolve(iinterface);
     }
     exports.resolve = resolve;
+
+    function resolveAll() {
+        var iinterfaces = [];
+        for (var _i = 0; _i < (arguments.length - 0); _i++) {
+            iinterfaces[_i] = arguments[_i + 0];
+        }
+        return IoCContainer.current().resolveAll(iinterfaces);
+    }
+    exports.resolveAll = resolveAll;
 
     function register(iinterface, instance) {
     }
@@ -35,8 +44,8 @@ define(["require", "exports"], function(require, exports) {
     exports.autoResolve = autoResolve;
 
     var InstanceResolver = (function () {
-        function InstanceResolver(_graph, _deferredFactory) {
-            this._graph = _graph;
+        function InstanceResolver(_manifest, _deferredFactory) {
+            this._manifest = _manifest;
             this._deferredFactory = _deferredFactory;
             this._instances = {};
         }
@@ -79,31 +88,25 @@ define(["require", "exports"], function(require, exports) {
                 });
             };
 
-            if (implRecord.scope === 0 /* Instance */) {
-                return instantiator;
-            }
-
             if (implRecord.scope === 1 /* Singleton */) {
                 return function () {
                     var qualname = implRecord.module + "." + implRecord.classReference;
-                    var deferred = _this._deferredFactory.create();
 
-                    if (_this._instances[qualname]) {
-                        console.log("It exists");
-                        return deferred.resolve(_this._instances[qualname]).promise();
-                    }
+                    if (_this._instances[qualname])
+                        return _this._deferredFactory.create().resolve(_this._instances[qualname]).promise();
 
                     return instantiator().then(function (instance) {
-                        console.log(_this._instances);
                         _this._instances[qualname] = instance;
                         return instance;
                     });
                 };
             }
+
+            return instantiator;
         };
 
         InstanceResolver.prototype.getImpl = function (interfaceName) {
-            var impls = this._graph.getInterface(interfaceName);
+            var impls = this._manifest.getInterface(interfaceName);
             for (var i in impls)
                 if (impls[i].prefered)
                     return impls[i];
@@ -117,7 +120,7 @@ define(["require", "exports"], function(require, exports) {
         function IoCContainer(_settings) {
             this._settings = _settings;
             this._interfaceGraph = new ManifestWrapper({});
-            this._resolver = new InstanceResolver(this._interfaceGraph, this.settings.deferredFactory);
+            this._resolver = new InstanceResolver(this._interfaceGraph, this._settings.deferredFactory);
         }
         IoCContainer.current = function (config) {
             if (!config && !IoCContainer.instance)
@@ -126,16 +129,17 @@ define(["require", "exports"], function(require, exports) {
             return config ? (IoCContainer.instance = new IoCContainer(config)) : IoCContainer.instance;
         };
 
-        Object.defineProperty(IoCContainer.prototype, "settings", {
-            get: function () {
-                return this._settings;
-            },
-            enumerable: true,
-            configurable: true
-        });
+        IoCContainer.prototype.resolve = function (iinterface) {
+            return this._resolver.getImpl(iinterface.interfaceName).instantiate();
+        };
 
-        IoCContainer.prototype.resolve = function (interfaceName) {
-            return this._resolver.getImpl(interfaceName).instantiate();
+        IoCContainer.prototype.resolveAll = function (iinterfaces) {
+            var resolvers = [];
+            for (var i in iinterfaces) {
+                resolvers.push(this._resolver.getImpl(iinterfaces[i].interfaceName).instantiate());
+            }
+
+            return this._settings.deferredFactory.utils.whenAll(resolvers);
         };
 
         IoCContainer.prototype.registerManifest = function (manifest) {

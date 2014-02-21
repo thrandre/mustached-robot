@@ -39,7 +39,11 @@ export function setup(settings: IIoCContainerConfiguration): void {
 }
 
 export function resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
-    return IoCContainer.current().resolve(iinterface.interfaceName);
+    return IoCContainer.current().resolve(iinterface);
+}
+
+export function resolveAll(...iinterfaces: IInterface<any>[]): IDeferred.IPromise<any[]> {
+    return IoCContainer.current().resolveAll(iinterfaces);
 }
 
 function register<T>(iinterface: IInterface<T>, instance: T): void {
@@ -53,7 +57,7 @@ export function autoResolve(manifest: { [id: string]: IImplementationRecord[] })
 class InstanceResolver {
     private _instances: { [id: string]: any } = {};
 
-    constructor(private _graph: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) { }
+    constructor(private _manifest: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) { }
 
     public loadModule(moduleName: string): IDeferred.IPromise<any> {
         var deferred = this._deferredFactory.create();
@@ -89,31 +93,25 @@ class InstanceResolver {
                 this.getInstantiator(implRecord.module, implRecord.classReference, args)());
         };
 
-        if (implRecord.scope === Scope.Instance) {
-            return instantiator;
-        }
-
         if (implRecord.scope === Scope.Singleton) {
             return () => {
                 var qualname = implRecord.module + "." + implRecord.classReference;
-                var deferred = this._deferredFactory.create();
 
-                if (this._instances[qualname]) {
-                    console.log("It exists");
-                    return deferred.resolve(this._instances[qualname]).promise();
-                }
+                if (this._instances[qualname])
+                    return this._deferredFactory.create().resolve(this._instances[qualname]).promise();
 
                 return instantiator().then(instance => {
-                    console.log(this._instances);
                     this._instances[qualname] = instance;
                     return instance;
                 });
             };
         }
+
+        return instantiator;
     }
 
     public getImpl(interfaceName: string): IImplementationRecord {
-        var impls = this._graph.getInterface(interfaceName);
+        var impls = this._manifest.getInterface(interfaceName);
         for (var i in impls)
             if (impls[i].prefered)
                 return impls[i];
@@ -134,20 +132,25 @@ class IoCContainer {
             : IoCContainer.instance;
     }
 
-    private get settings(): IIoCContainerConfiguration {
-        return this._settings;
-    }
-
     private _interfaceGraph: ManifestWrapper;
     private _resolver: InstanceResolver;
 
     constructor(private _settings: IIoCContainerConfiguration) {
         this._interfaceGraph = new ManifestWrapper({});
-        this._resolver = new InstanceResolver(this._interfaceGraph, this.settings.deferredFactory);
+        this._resolver = new InstanceResolver(this._interfaceGraph, this._settings.deferredFactory);
     }
 
-    public resolve(interfaceName: string): IDeferred.IPromise<any> {
-        return this._resolver.getImpl(interfaceName).instantiate();
+    public resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
+        return this._resolver.getImpl(iinterface.interfaceName).instantiate();
+    }
+
+    public resolveAll(iinterfaces: IInterface<any>[]): IDeferred.IPromise<any[]> {
+        var resolvers = [];
+        for (var i in iinterfaces) {
+            resolvers.push(this._resolver.getImpl(iinterfaces[i].interfaceName).instantiate());
+        }
+
+        return this._settings.deferredFactory.utils.whenAll(resolvers);
     }
 
     public registerManifest(manifest: IManifest): void {

@@ -12,7 +12,15 @@ var dependencies = {
 			module: "app",
 			classReference: "ConsoleGreeter",
 			dependencies: [],
-			scope: 0 /* instance */
+			scope: 1 /* singleton */
+		}
+	],
+	"IEnumerableFactory": [
+		{
+			module: "linq/linq",
+			classReference: "EnumerableFactory",
+			dependencies: [],
+			scope: 1
 		}
 	]
 };

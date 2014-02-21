@@ -28,10 +28,11 @@
     <TypeScriptCompile Include="common.ts" />
     <TypeScriptCompile Include="deferred\deferred.d.ts" />
     <TypeScriptCompile Include="ioc\ioc.ts" />
-    <TypeScriptCompile Include="linq.ts" />
+    <TypeScriptCompile Include="linq\linq.d.ts" />
+    <TypeScriptCompile Include="linq\linq.ts" />
     <TypeScriptCompile Include="deferred\deferred.ts" />
+    <TypeScriptCompile Include="locators.ts" />
     <TypeScriptCompile Include="require.d.ts" />
-    <TypeScriptCompile Include="test.ts" />
   </ItemGroup>
   <ItemGroup>
     <None Include="web.Debug.config">
