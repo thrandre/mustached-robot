@@ -112,6 +112,10 @@ class InstanceResolver {
 
     public getImpl(interfaceName: string): IImplementationRecord {
         var impls = this._manifest.getInterface(interfaceName);
+
+        if (!impls || impls.length === 0)
+            throw new Error("No implementations registered for " + interfaceName);
+
         for (var i in impls)
             if (impls[i].prefered)
                 return impls[i];
@@ -157,7 +161,12 @@ class IoCContainer {
         for (var x in manifest) {
             for (var y in manifest[x]) {
                 var impl = manifest[x][y];
+
                 impl.instantiate = this._resolver.resolveImpl(impl);
+
+                if (!impl.dependencies)
+                    impl.dependencies = [];
+
                 this._interfaceGraph.addImplementation(x, impl);
             }
         }

@@ -21,7 +21,7 @@ IoC.resolve(new Locators.IIEnumerableFactory()).then(
 
         enumerableFactory
             .fromArray(people)
-            .groupBy(p=> p.age > 25)
+            .groupBy(p => p.age > 25)
             .orderByAscending(g => g.sum(p => p.age))
             .toList()
             .each(g => console.log(g));
