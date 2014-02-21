@@ -1,13 +1,22 @@
-/// <reference path="require.d.ts"/>
-/// <reference path="deferred/deferred.d.ts"/>
+/// <reference path="../require.d.ts"/>
+/// <reference path="../deferred/deferred.d.ts"/>
 
 export interface IResolvedCallback<T> {
     (instance: T): void;
 }
 
-export enum Scope {
-    Instance,
-    Singleton
+export interface IImplementationRecord {
+    module: string;
+    classReference: string;
+    dependencies: string[];
+    scope: number;
+
+    prefered: boolean;
+    instantiate: () => IDeferred.IPromise<any>;
+}
+
+interface IInterfaceStore {
+    [id: string]: IImplementationRecord[];
 }
 
 export class IInterface<T> {
@@ -16,7 +25,12 @@ export class IInterface<T> {
     enforcer: T;
 }
 
-export function resolve<T>(iinterface: IInterface<T>): Deferred.IPromise<T> {
+export enum Scope {
+    Instance,
+    Singleton
+}
+
+export function resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
     return IoCContainer.current().resolve(iinterface.interfaceName);
 }
 
@@ -29,9 +43,9 @@ export function autoResolve(descriptorObject: { [id: string]: IImplementationRec
 }
 
 class InstanceResolver {
-    constructor(private _graph: InterfaceGraph, private _deferredFactory: Deferred.IDeferredFactory) {}
+    constructor(private _graph: InterfaceGraph, private _deferredFactory: IDeferred.IDeferredFactory) {}
 
-    public loadModule(moduleName: string): Deferred.IPromise<any> {
+    public loadModule(moduleName: string): IDeferred.IPromise<any> {
         var deferred = this._deferredFactory.create();
         require([moduleName], m => deferred.resolve(m));
         return deferred.promise();
@@ -50,18 +64,18 @@ class InstanceResolver {
         };
     }
 
-    public resolveDependencies(interfaceName: string): () => Deferred.IPromise<any> {
+    public resolveDependencies(interfaceName: string): () => IDeferred.IPromise<any> {
         return this.resolveImpl(this.getImpl(interfaceName));
     }
 
-    public resolveImpl(implRecord: IImplementationRecord): () => Deferred.IPromise<any> {
+    public resolveImpl(implRecord: IImplementationRecord): () => IDeferred.IPromise<any> {
         return () => {
-            var deps: Deferred.IPromise<any>[] = [];
+            var deps: IDeferred.IPromise<any>[] = [];
 
             for (var x in implRecord.dependencies)
                 deps.push(this.resolveDependencies(implRecord.dependencies[x])());
 
-            return Deferred.whenAll(deps).then(args =>
+            return this._deferredFactory.utils.whenAll(deps).then(args =>
                 this.getInstantiator(implRecord.module, implRecord.classReference, args)());
         };
     }
@@ -86,14 +100,16 @@ class IoCContainer {
     }
 
     private _interfaceGraph: InterfaceGraph;
+    private _deferredFactory: IDeferred.IDeferredFactory;
     private _resolver: InstanceResolver;
 
     constructor() {
         this._interfaceGraph = new InterfaceGraph();
-        this._resolver = new InstanceResolver(this._interfaceGraph);
+        this._deferredFactory = null;
+        this._resolver = new InstanceResolver(this._interfaceGraph, this._deferredFactory);
     }
 
-    public resolve(interfaceName: string): IPromise<any> {
+    public resolve(interfaceName: string): IDeferred.IPromise<any> {
         return this._resolver.getImpl(interfaceName).instantiate();
     }
 
@@ -129,18 +145,4 @@ class InterfaceGraph {
         this.addInterface(interfaceName);
         this._store[interfaceName].push(impl);
     }
-}
-
-export interface IImplementationRecord {
-    module: string;
-    classReference: string;
-    dependencies: string[];
-    scope: Scope;
-
-    prefered: boolean;
-    instantiate: () => IPromise<any>;
-}
-
-interface IInterfaceStore {
-    [id: string]: IImplementationRecord[];
 }

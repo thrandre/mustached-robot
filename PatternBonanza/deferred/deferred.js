@@ -6,6 +6,17 @@ define(["require", "exports"], function(require, exports) {
         DeferredFactory.prototype.create = function () {
             return new Deferred();
         };
+
+        Object.defineProperty(DeferredFactory.prototype, "utils", {
+            get: function () {
+                return {
+                    when: exports.when,
+                    whenAll: exports.whenAll
+                };
+            },
+            enumerable: true,
+            configurable: true
+        });
         return DeferredFactory;
     })();
     exports.DeferredFactory = DeferredFactory;

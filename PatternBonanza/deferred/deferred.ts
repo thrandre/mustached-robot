@@ -1,8 +1,15 @@
 /// <reference path="deferred.d.ts"/>
 
-export class DeferredFactory {
-    create<T>(): Deferred.IDeferred<T> {
+export class DeferredFactory implements IDeferred.IDeferredFactory {
+    create<T>(): IDeferred.IDeferred<T> {
         return new Deferred<T>();
+    }
+
+    get utils(): IDeferred.IDeferredUtils {
+        return {
+            when: when,
+            whenAll: whenAll
+        };
     }
 }
 
@@ -12,15 +19,15 @@ export enum Status {
     Rejected
 }
 
-export class Rejection implements Deferred.IRejection {
+export class Rejection implements IDeferred.IRejection {
     message: string;
 }
 
-export function whenAll(promises: Deferred.IPromise<any>[]): Deferred.IPromise<any[]> {
+export function whenAll(promises: IDeferred.IPromise<any>[]): IDeferred.IPromise<any[]> {
     return when.apply(this, promises);
 }
 
-export function when(...promises: Deferred.IPromise<any>[]): Deferred.IPromise<any[]> {
+export function when(...promises: IDeferred.IPromise<any>[]): IDeferred.IPromise<any[]> {
     var allDone = new Deferred<any[]>();
 
     if (!promises.length) {
@@ -50,7 +57,7 @@ export function when(...promises: Deferred.IPromise<any>[]): Deferred.IPromise<a
     return allDone.promise();
 }
 
-class Promise<T> implements Deferred.IPromise<T> {
+class Promise<T> implements IDeferred.IPromise<T> {
     private _deferred: Deferred<T>;
 
     constructor(deferred: Deferred<T>) {
@@ -69,24 +76,24 @@ class Promise<T> implements Deferred.IPromise<T> {
         return this._deferred.error;
     }
 
-    public done(cb: (v: T) => void): Deferred.IPromise<T> {
+    public done(cb: (v: T) => void): IDeferred.IPromise<T> {
         this._deferred.done(cb);
         return this;
     }
 
-    public fail(cb: (v: Rejection) => void): Deferred.IPromise<T> {
+    public fail(cb: (v: Rejection) => void): IDeferred.IPromise<T> {
         this._deferred.fail(cb);
         return this;
     }
 
-    public then<T2>(cb: (v: T) => any): Deferred.IPromise<T2> {
+    public then<T2>(cb: (v: T) => any): IDeferred.IPromise<T2> {
         return this._deferred.then<T2>(cb);
     }
 }
 
-export class Deferred<T> implements Deferred.IDeferred<T> {
+export class Deferred<T> implements IDeferred.IDeferred<T> {
 
-    private _promise: Deferred.IPromise<T>;
+    private _promise: IDeferred.IPromise<T>;
     private _status: Status = Status.Unfulfilled;
     private _result: T;
     private _error: Rejection;
@@ -98,7 +105,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         this._promise = new Promise(this);
     }
 
-    public promise(): Deferred.IPromise<T> {
+    public promise(): IDeferred.IPromise<T> {
         return this._promise;
     }
 
@@ -120,7 +127,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         return this._error;
     }
 
-    public done(cb: (v: T) => void): Deferred.IDeferred<T> {
+    public done(cb: (v: T) => void): IDeferred.IDeferred<T> {
         if (this.status === Status.Resolved) {
             cb(this.result);
             return this;
@@ -136,7 +143,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         return this;
     }
 
-    public fail(cb: (v: Rejection) => void): Deferred.IDeferred<T> {
+    public fail(cb: (v: Rejection) => void): IDeferred.IDeferred<T> {
         if (this.status === Status.Rejected) {
             cb(this.error);
             return this;
@@ -152,7 +159,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         return this;
     }
 
-    public then<T2>(cb: (v: T) => T2): Deferred.IPromise<T2> {
+    public then<T2>(cb: (v: T) => T2): IDeferred.IPromise<T2> {
         var d = new Deferred<T2>();
 
         this.done(v => {
@@ -170,7 +177,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         return d.promise();
     }
 
-    public resolve(result: T): Deferred.IDeferred<T> {
+    public resolve(result: T): IDeferred.IDeferred<T> {
         if (this.status !== Status.Unfulfilled) {
             throw new Error("Tried to resolve a fulfilled promise");
         }
@@ -183,7 +190,7 @@ export class Deferred<T> implements Deferred.IDeferred<T> {
         return this;
     }
 
-    public reject(err: Rejection): Deferred.IDeferred<T> {
+    public reject(err: Rejection): IDeferred.IDeferred<T> {
         if (this.status !== Status.Unfulfilled) {
             throw new Error("Tried to reject a fulfilled promise");
         }

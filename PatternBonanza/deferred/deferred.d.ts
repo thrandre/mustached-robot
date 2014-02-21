@@ -1,10 +1,17 @@
-declare module Deferred {
+declare module IDeferred {
+
     interface IRejection {
         message: string;
     }
 
     interface IDeferredFactory {
         create<T>(): IDeferred<T>;
+        utils: IDeferredUtils;
+    }
+
+    interface IDeferredUtils {
+        when(...promises: IDeferred.IPromise<any>[]): IDeferred.IPromise<any[]>;
+        whenAll(promises: IDeferred.IPromise<any>[]): IDeferred.IPromise<any[]>;
     }
 
     interface IDeferred<T> {
@@ -28,4 +35,5 @@ declare module Deferred {
         then<T2>(cb: (v: T)=> T2): IPromise<T2>;
         then<T2>(cb: (v: T)=> IPromise<T2>): IPromise<T2>;
     }
+
 }
