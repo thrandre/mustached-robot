@@ -12,6 +12,7 @@ export enum Scope {
 
 export class IInterface<T> {
     interfaceName: string;
+    methods: string[];
     enforcer: T;
 }
 
