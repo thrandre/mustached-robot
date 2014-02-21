@@ -46,12 +46,14 @@ function register<T>(iinterface: IInterface<T>, instance: T): void {
 
 }
 
-export function autoResolve(descriptorObject: { [id: string]: IImplementationRecord[] }): void {
-    IoCContainer.current().registerFromManifest(descriptorObject);
+export function autoResolve(manifest: { [id: string]: IImplementationRecord[] }): void {
+    IoCContainer.current().registerManifest(manifest);
 }
 
 class InstanceResolver {
-    constructor(private _graph: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) {}
+    private _instances: { [id: string]: any } = {};
+
+    constructor(private _graph: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) { }
 
     public loadModule(moduleName: string): IDeferred.IPromise<any> {
         var deferred = this._deferredFactory.create();
@@ -77,7 +79,7 @@ class InstanceResolver {
     }
 
     public resolveImpl(implRecord: IImplementationRecord): () => IDeferred.IPromise<any> {
-        return () => {
+        var instantiator = () => {
             var deps: IDeferred.IPromise<any>[] = [];
 
             for (var x in implRecord.dependencies)
@@ -86,6 +88,28 @@ class InstanceResolver {
             return this._deferredFactory.utils.whenAll(deps).then(args =>
                 this.getInstantiator(implRecord.module, implRecord.classReference, args)());
         };
+
+        if (implRecord.scope === Scope.Instance) {
+            return instantiator;
+        }
+
+        if (implRecord.scope === Scope.Singleton) {
+            return () => {
+                var qualname = implRecord.module + "." + implRecord.classReference;
+                var deferred = this._deferredFactory.create();
+
+                if (this._instances[qualname]) {
+                    console.log("It exists");
+                    return deferred.resolve(this._instances[qualname]).promise();
+                }
+
+                return instantiator().then(instance => {
+                    console.log(this._instances);
+                    this._instances[qualname] = instance;
+                    return instance;
+                });
+            };
+        }
     }
 
     public getImpl(interfaceName: string): IImplementationRecord {
@@ -126,7 +150,7 @@ class IoCContainer {
         return this._resolver.getImpl(interfaceName).instantiate();
     }
 
-    public registerFromManifest(manifest: IManifest): void {
+    public registerManifest(manifest: IManifest): void {
         for (var x in manifest) {
             for (var y in manifest[x]) {
                 var impl = manifest[x][y];

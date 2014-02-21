@@ -4,7 +4,7 @@ var dependencies = {
 			module: "app",
 			classReference: "Greeter",
 			dependencies: ["IMedium"],
-			scope: 0
+			scope: 1 /* singleton */
 		}
 	],
 	"IMedium": [
@@ -12,15 +12,7 @@ var dependencies = {
 			module: "app",
 			classReference: "ConsoleGreeter",
 			dependencies: [],
-			scope: 0
-		}
-	],
-	"IDeferredFactory": [
-		{
-			module: "deferred",
-			classReference: "DeferredFactory",
-			dependencies: [],
-			scope: 0
+			scope: 0 /* instance */
 		}
 	]
 };

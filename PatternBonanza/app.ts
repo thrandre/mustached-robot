@@ -13,9 +13,12 @@ export interface IGreeter {
 
 export class Greeter implements IGreeter {
 	constructor(public medium: IMedium) {}
-	public greet(name: string): void {
-		this.medium.write("Hello " + name);
-	}
+    private counter = 0;
+    public greet(name: string): void {
+        this.counter++;
+        this.medium.write("Hello " + name);
+        this.medium.write("For the " + this.counter + " time!");
+    }
 }
 
 export class ConsoleGreeter implements IMedium {
@@ -42,4 +45,13 @@ IoC.setup({ deferredFactory: new Deferred.DeferredFactory() });
 
 IoC.autoResolve(window["dependencies"]);
 
-IoC.resolve(new IIGreeter()).then(g=> g.greet("Thomas"));
+IoC.resolve(new IIGreeter()).then(g=> {
+    g.greet("Thomas");
+    IoC.resolve(new IIGreeter()).then(g=> {
+        g.greet("Thomas");
+        IoC.resolve(new IIGreeter()).then(g=> {
+            g.greet("Thomas");
+
+        });
+    });
+});

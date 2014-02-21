@@ -29,8 +29,8 @@ define(["require", "exports"], function(require, exports) {
     function register(iinterface, instance) {
     }
 
-    function autoResolve(descriptorObject) {
-        IoCContainer.current().registerFromManifest(descriptorObject);
+    function autoResolve(manifest) {
+        IoCContainer.current().registerManifest(manifest);
     }
     exports.autoResolve = autoResolve;
 
@@ -38,6 +38,7 @@ define(["require", "exports"], function(require, exports) {
         function InstanceResolver(_graph, _deferredFactory) {
             this._graph = _graph;
             this._deferredFactory = _deferredFactory;
+            this._instances = {};
         }
         InstanceResolver.prototype.loadModule = function (moduleName) {
             var deferred = this._deferredFactory.create();
@@ -67,7 +68,7 @@ define(["require", "exports"], function(require, exports) {
 
         InstanceResolver.prototype.resolveImpl = function (implRecord) {
             var _this = this;
-            return function () {
+            var instantiator = function () {
                 var deps = [];
 
                 for (var x in implRecord.dependencies)
@@ -77,6 +78,28 @@ define(["require", "exports"], function(require, exports) {
                     return _this.getInstantiator(implRecord.module, implRecord.classReference, args)();
                 });
             };
+
+            if (implRecord.scope === 0 /* Instance */) {
+                return instantiator;
+            }
+
+            if (implRecord.scope === 1 /* Singleton */) {
+                return function () {
+                    var qualname = implRecord.module + "." + implRecord.classReference;
+                    var deferred = _this._deferredFactory.create();
+
+                    if (_this._instances[qualname]) {
+                        console.log("It exists");
+                        return deferred.resolve(_this._instances[qualname]).promise();
+                    }
+
+                    return instantiator().then(function (instance) {
+                        console.log(_this._instances);
+                        _this._instances[qualname] = instance;
+                        return instance;
+                    });
+                };
+            }
         };
 
         InstanceResolver.prototype.getImpl = function (interfaceName) {
@@ -115,7 +138,7 @@ define(["require", "exports"], function(require, exports) {
             return this._resolver.getImpl(interfaceName).instantiate();
         };
 
-        IoCContainer.prototype.registerFromManifest = function (manifest) {
+        IoCContainer.prototype.registerManifest = function (manifest) {
             for (var x in manifest) {
                 for (var y in manifest[x]) {
                     var impl = manifest[x][y];

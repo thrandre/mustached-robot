@@ -9,9 +9,12 @@ define(["require", "exports", "deferred/deferred", "ioc/ioc"], function(require,
     var Greeter = (function () {
         function Greeter(medium) {
             this.medium = medium;
+            this.counter = 0;
         }
         Greeter.prototype.greet = function (name) {
+            this.counter++;
             this.medium.write("Hello " + name);
+            this.medium.write("For the " + this.counter + " time!");
         };
         return Greeter;
     })();
@@ -56,7 +59,13 @@ define(["require", "exports", "deferred/deferred", "ioc/ioc"], function(require,
     IoC.autoResolve(window["dependencies"]);
 
     IoC.resolve(new IIGreeter()).then(function (g) {
-        return g.greet("Thomas");
+        g.greet("Thomas");
+        IoC.resolve(new IIGreeter()).then(function (g) {
+            g.greet("Thomas");
+            IoC.resolve(new IIGreeter()).then(function (g) {
+                g.greet("Thomas");
+            });
+        });
     });
 });
 //# sourceMappingURL=app.js.map
