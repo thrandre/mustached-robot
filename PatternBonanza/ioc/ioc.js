@@ -16,6 +16,11 @@ define(["require", "exports"], function(require, exports) {
     })(exports.Scope || (exports.Scope = {}));
     var Scope = exports.Scope;
 
+    function setup(settings) {
+        IoCContainer.current(settings);
+    }
+    exports.setup = setup;
+
     function resolve(iinterface) {
         return IoCContainer.current().resolve(iinterface.interfaceName);
     }
@@ -25,7 +30,7 @@ define(["require", "exports"], function(require, exports) {
     }
 
     function autoResolve(descriptorObject) {
-        IoCContainer.current().registerFromDescriptor(descriptorObject);
+        IoCContainer.current().registerFromManifest(descriptorObject);
     }
     exports.autoResolve = autoResolve;
 
@@ -86,23 +91,34 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var IoCContainer = (function () {
-        function IoCContainer() {
-            this._interfaceGraph = new InterfaceGraph();
-            this._deferredFactory = null;
-            this._resolver = new InstanceResolver(this._interfaceGraph, this._deferredFactory);
+        function IoCContainer(_settings) {
+            this._settings = _settings;
+            this._interfaceGraph = new ManifestWrapper({});
+            this._resolver = new InstanceResolver(this._interfaceGraph, this.settings.deferredFactory);
         }
-        IoCContainer.current = function () {
-            return IoCContainer.instance ? IoCContainer.instance : (IoCContainer.instance = new IoCContainer());
+        IoCContainer.current = function (config) {
+            if (!config && !IoCContainer.instance)
+                throw new Error("Unable to return instance of container: No configuration provided.");
+
+            return config ? (IoCContainer.instance = new IoCContainer(config)) : IoCContainer.instance;
         };
+
+        Object.defineProperty(IoCContainer.prototype, "settings", {
+            get: function () {
+                return this._settings;
+            },
+            enumerable: true,
+            configurable: true
+        });
 
         IoCContainer.prototype.resolve = function (interfaceName) {
             return this._resolver.getImpl(interfaceName).instantiate();
         };
 
-        IoCContainer.prototype.registerFromDescriptor = function (descriptor) {
-            for (var x in descriptor) {
-                for (var y in descriptor[x]) {
-                    var impl = descriptor[x][y];
+        IoCContainer.prototype.registerFromManifest = function (manifest) {
+            for (var x in manifest) {
+                for (var y in manifest[x]) {
+                    var impl = manifest[x][y];
                     impl.instantiate = this._resolver.resolveImpl(impl);
                     this._interfaceGraph.addImplementation(x, impl);
                 }
@@ -112,29 +128,29 @@ define(["require", "exports"], function(require, exports) {
         return IoCContainer;
     })();
 
-    var InterfaceGraph = (function () {
-        function InterfaceGraph() {
-            this._store = {};
+    var ManifestWrapper = (function () {
+        function ManifestWrapper(_store) {
+            this._store = _store;
         }
-        InterfaceGraph.prototype.interfaceDeclared = function (name) {
+        ManifestWrapper.prototype.isInterfaceDeclared = function (name) {
             return !!this._store[name];
         };
 
-        InterfaceGraph.prototype.getInterface = function (name) {
+        ManifestWrapper.prototype.getInterface = function (name) {
             return this._store[name];
         };
 
-        InterfaceGraph.prototype.addInterface = function (name) {
-            if (this.interfaceDeclared(name))
+        ManifestWrapper.prototype.addInterface = function (name) {
+            if (this.isInterfaceDeclared(name))
                 return;
             this._store[name] = [];
         };
 
-        InterfaceGraph.prototype.addImplementation = function (interfaceName, impl) {
+        ManifestWrapper.prototype.addImplementation = function (interfaceName, impl) {
             this.addInterface(interfaceName);
             this._store[interfaceName].push(impl);
         };
-        return InterfaceGraph;
+        return ManifestWrapper;
     })();
 });
 //# sourceMappingURL=ioc.js.map

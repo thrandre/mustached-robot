@@ -5,7 +5,7 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-define(["require", "exports", "deferred/deferred", "ioc/ioc"], function(require, exports, D, IoC) {
+define(["require", "exports", "deferred/deferred", "ioc/ioc"], function(require, exports, Deferred, IoC) {
     var Greeter = (function () {
         function Greeter(medium) {
             this.medium = medium;
@@ -51,14 +51,12 @@ define(["require", "exports", "deferred/deferred", "ioc/ioc"], function(require,
         return IIGreeter;
     })(IoC.IInterface);
 
+    IoC.setup({ deferredFactory: new Deferred.DeferredFactory() });
+
     IoC.autoResolve(window["dependencies"]);
 
-    var greeter = IoC.resolve(new IIGreeter());
-
-    D.when(greeter).then(function (instances) {
-        var g = instances[0];
-
-        g.greet("Thomas");
+    IoC.resolve(new IIGreeter()).then(function (g) {
+        return g.greet("Thomas");
     });
 });
 //# sourceMappingURL=app.js.map

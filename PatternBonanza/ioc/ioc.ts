@@ -15,7 +15,11 @@ export interface IImplementationRecord {
     instantiate: () => IDeferred.IPromise<any>;
 }
 
-interface IInterfaceStore {
+export interface IIoCContainerConfiguration {
+    deferredFactory: IDeferred.IDeferredFactory;
+}
+
+interface IManifest {
     [id: string]: IImplementationRecord[];
 }
 
@@ -30,6 +34,10 @@ export enum Scope {
     Singleton
 }
 
+export function setup(settings: IIoCContainerConfiguration): void {
+    IoCContainer.current(settings);
+}
+
 export function resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
     return IoCContainer.current().resolve(iinterface.interfaceName);
 }
@@ -39,11 +47,11 @@ function register<T>(iinterface: IInterface<T>, instance: T): void {
 }
 
 export function autoResolve(descriptorObject: { [id: string]: IImplementationRecord[] }): void {
-    IoCContainer.current().registerFromDescriptor(descriptorObject);
+    IoCContainer.current().registerFromManifest(descriptorObject);
 }
 
 class InstanceResolver {
-    constructor(private _graph: InterfaceGraph, private _deferredFactory: IDeferred.IDeferredFactory) {}
+    constructor(private _graph: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) {}
 
     public loadModule(moduleName: string): IDeferred.IPromise<any> {
         var deferred = this._deferredFactory.create();
@@ -93,30 +101,35 @@ class InstanceResolver {
 class IoCContainer {
     static instance: IoCContainer = null;
 
-    static current(): IoCContainer {
-        return IoCContainer.instance
-            ? IoCContainer.instance
-            : (IoCContainer.instance = new IoCContainer());
+    static current(config?: IIoCContainerConfiguration): IoCContainer {
+        if (!config && !IoCContainer.instance)
+            throw new Error("Unable to return instance of container: No configuration provided.");
+
+        return config
+            ? (IoCContainer.instance = new IoCContainer(config))
+            : IoCContainer.instance;
     }
 
-    private _interfaceGraph: InterfaceGraph;
-    private _deferredFactory: IDeferred.IDeferredFactory;
+    private get settings(): IIoCContainerConfiguration {
+        return this._settings;
+    }
+
+    private _interfaceGraph: ManifestWrapper;
     private _resolver: InstanceResolver;
 
-    constructor() {
-        this._interfaceGraph = new InterfaceGraph();
-        this._deferredFactory = null;
-        this._resolver = new InstanceResolver(this._interfaceGraph, this._deferredFactory);
+    constructor(private _settings: IIoCContainerConfiguration) {
+        this._interfaceGraph = new ManifestWrapper({});
+        this._resolver = new InstanceResolver(this._interfaceGraph, this.settings.deferredFactory);
     }
 
     public resolve(interfaceName: string): IDeferred.IPromise<any> {
         return this._resolver.getImpl(interfaceName).instantiate();
     }
 
-    public registerFromDescriptor(descriptor: IInterfaceStore): void {
-        for (var x in descriptor) {
-            for (var y in descriptor[x]) {
-                var impl = descriptor[x][y];
+    public registerFromManifest(manifest: IManifest): void {
+        for (var x in manifest) {
+            for (var y in manifest[x]) {
+                var impl = manifest[x][y];
                 impl.instantiate = this._resolver.resolveImpl(impl);
                 this._interfaceGraph.addImplementation(x, impl);
             }
@@ -124,10 +137,10 @@ class IoCContainer {
     }
 }
 
-class InterfaceGraph {
-    private _store: IInterfaceStore = {};
+class ManifestWrapper {
+    constructor(private _store: IManifest) {}
 
-    public interfaceDeclared(name: string): boolean {
+    public isInterfaceDeclared(name: string): boolean {
         return !!this._store[name];
     }
 
@@ -136,8 +149,7 @@ class InterfaceGraph {
     }
 
     public addInterface(name: string): void {
-        if (this.interfaceDeclared(name))
-            return;
+        if (this.isInterfaceDeclared(name)) return;
         this._store[name] = [];
     }
 

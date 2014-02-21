@@ -1,6 +1,6 @@
 /// <reference path="deferred/deferred.d.ts"/>
 
-import D = require("deferred/deferred");
+import Deferred = require("deferred/deferred");
 import IoC = require("ioc/ioc");
 
 export interface IMedium { 
@@ -38,12 +38,8 @@ class IIGreeter extends IoC.IInterface<IGreeter> {
     public interfaceName = "IGreeter";
 }
 
+IoC.setup({ deferredFactory: new Deferred.DeferredFactory() });
+
 IoC.autoResolve(window["dependencies"]);
 
-var greeter = IoC.resolve(new IIGreeter());
-
-D.when(greeter).then(instances => {
-    var g: IGreeter = instances[0];
-
-    g.greet("Thomas");
-});
+IoC.resolve(new IIGreeter()).then(g=> g.greet("Thomas"));
