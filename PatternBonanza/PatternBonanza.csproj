@@ -20,19 +20,24 @@
     <Content Include="app.css" />
     <Content Include="default.htm" />
     <Content Include="dependencies.js" />
-    <Content Include="require.js" />
+    <Content Include="lib\jquery.js" />
+    <Content Include="lib\require.js" />
+    <Content Include="lib\three.js" />
     <Content Include="web.config" />
   </ItemGroup>
   <ItemGroup>
+    <TypeScriptCompile Include="adapter3d\object3d.ts" />
     <TypeScriptCompile Include="app.ts" />
-    <TypeScriptCompile Include="common.ts" />
     <TypeScriptCompile Include="deferred\deferred.d.ts" />
     <TypeScriptCompile Include="ioc\ioc.ts" />
     <TypeScriptCompile Include="linq\linq.d.ts" />
     <TypeScriptCompile Include="linq\linq.ts" />
     <TypeScriptCompile Include="deferred\deferred.ts" />
     <TypeScriptCompile Include="locators.ts" />
+    <TypeScriptCompile Include="observable\observable.ts" />
     <TypeScriptCompile Include="require.d.ts" />
+    <TypeScriptCompile Include="typings\jquery.d.ts" />
+    <TypeScriptCompile Include="typings\three.d.ts" />
   </ItemGroup>
   <ItemGroup>
     <None Include="web.Debug.config">

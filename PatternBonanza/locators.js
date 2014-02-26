@@ -10,6 +10,8 @@ define(["require", "exports", "ioc/ioc"], function(require, exports, IoC) {
         function IIEnumerableFactory() {
             _super.apply(this, arguments);
             this.interfaceName = "IEnumerableFactory";
+            this.methods = [];
+            this.properties = [];
         }
         return IIEnumerableFactory;
     })(IoC.IInterface);

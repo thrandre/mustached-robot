@@ -1,11 +1,11 @@
 /// <reference path="linq.d.ts"/>
 
 export class EnumerableFactory implements ILinq.IEnumerableFactory {
-    public fromArray<T>(arr: T[]): ILinq.IEnumerable<T> {
+    fromArray<T>(arr: T[]): ILinq.IEnumerable<T> {
         return Enumerable.fromArray(arr);
     }
 
-    public fromObject<TVal>(obj: { [id: string]: TVal }): ILinq.IEnumerable<ILinq.IKeyValuePair<string, TVal>> {
+    fromObject<TVal>(obj: { [id: string]: TVal }): ILinq.IEnumerable<ILinq.IKeyValuePair<string, TVal>> {
         return Enumerable.fromObject(obj);
     }
 }
@@ -38,11 +38,11 @@ class IterationResult<TIn> implements ILinq.IIterationResult<TIn> {
 class FilterAggregator<TIn> implements ILinq.IAggregator<TIn, ILinq.IEnumerable<TIn>> {
     private _storage: TIn[] = [];
         
-    public aggregate(item: TIn): void {
+    aggregate(item: TIn) {
         this._storage.push(item);    
     }
         
-    public getResult(): ILinq.IEnumerable<TIn> {
+    getResult(): ILinq.IEnumerable<TIn> {
         return Enumerable.fromArray(this._storage);
     }
 }
@@ -50,22 +50,24 @@ class FilterAggregator<TIn> implements ILinq.IAggregator<TIn, ILinq.IEnumerable<
 class AggregationAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, TOut> {
     private _storage: TOut;
 
-    public aggregate(item: TIn): void {
-        this._storage = this.aggregatorFunction(this._storage, this.selector(item));
+    aggregate(item: TIn) {
+        this._storage = this._aggregatorFunction(this._storage, this._selector(item));
     }
         
-    public getResult(): TOut {
+    getResult(): TOut {
         return this._storage;
     }
 
-    constructor(private selector: ILinq.ISelector<TIn, TOut>, private aggregatorFunction: ILinq.IAggregatorFunction<TOut>) {}
+    constructor(
+        private _selector: ILinq.ISelector<TIn, TOut>,
+        private _aggregatorFunction: ILinq.IAggregatorFunction<TOut>) { }
 }
 
 class GroupingAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut>>> {
     private _storage: Grouping<TIn, TOut>[] = [];
 
-    private bucket(item: TIn): void {
-        var key = this.selector(item);
+    private bucket(item: TIn) {
+        var key = this._selector(item);
         var bucket = Enumerable.fromArray(this._storage).firstOrDefault(b => b.key === key);
 
         if (bucket === null || typeof bucket === "undefined") {
@@ -76,22 +78,22 @@ class GroupingAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, ILinq.IEnu
         bucket.add(item);
     }
 
-    public aggregate(item: TIn): void {
+    aggregate(item: TIn) {
         this.bucket(item);
     }
 
-    public getResult(): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut>> {
+    getResult(): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut>> {
         return Enumerable.fromArray(this._storage);
     }
 
-    constructor(private selector: ILinq.ISelector<TIn, TOut>) { }
+    constructor(private _selector: ILinq.ISelector<TIn, TOut>) { }
 }
 
 class SortingAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, ILinq.IEnumerable<TIn>> {
     private _storage: TIn[] = [];
 
     private getComparer(): ILinq.IComparerFunction<TOut> {
-        return this.sortOrder === SortOrder.Ascending
+        return this._sortOrder === SortOrder.Ascending
             ? (i1, i2)=> i1 > i2
             : (i1, i2)=> i2 > i1;
     }
@@ -101,7 +103,7 @@ class SortingAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, ILinq.IEnum
         var pos = 0;
 
         Enumerable.fromArray(this._storage).firstOrDefault(item2=> {
-            if (comparer(this.selector(item1), this.selector(item2))) {
+            if (comparer(this._selector(item1), this._selector(item2))) {
                 pos++;
                 return false;
             }
@@ -111,15 +113,17 @@ class SortingAggregator<TIn, TOut> implements ILinq.IAggregator<TIn, ILinq.IEnum
         return pos;
     }
 
-    public aggregate(item: TIn): void {
+    aggregate(item: TIn) {
         this._storage.splice(this.getInsertionPosition(item), 0, item);
     }
 
-    public getResult(): ILinq.IEnumerable<TIn> {
+    getResult(): ILinq.IEnumerable<TIn> {
         return Enumerable.fromArray(this._storage);
     }
 
-    constructor(private selector: ILinq.ISelector<TIn, TOut>, private sortOrder: SortOrder) {}
+    constructor(
+        private _selector: ILinq.ISelector<TIn, TOut>,
+        private _sortOrder: SortOrder) { }
 }
 
 class Iterator<TIn> {
@@ -127,7 +131,7 @@ class Iterator<TIn> {
         var i = 0;
         var currentItem: TIn;
     
-        while ((currentItem = this.enumerator.next()) !== null) {
+        while ((currentItem = this._enumerator.next()) !== null) {
             var iteration = iterator(currentItem, i);
     
             if (iteration.result !== null) {
@@ -144,53 +148,53 @@ class Iterator<TIn> {
         return aggregator.getResult();
     }
         
-    public filter<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, TOut2>): TOut2 {
+    filter<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, TOut2>): TOut2 {
         return this.iterate(iterator, aggregator);
     }
         
-    public aggregate<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, TOut2>): TOut2 {
+    aggregate<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, TOut2>): TOut2 {
         return this.iterate(iterator, aggregator);
     }
 
-    constructor(private enumerator: ILinq.IEnumerator<TIn>) { }
+    constructor(private _enumerator: ILinq.IEnumerator<TIn>) { }
 }
 
 export class EnumerableCore<TIn> implements ILinq.IEnumerable<TIn> {
-    public storage: TIn[];
+    storage: TIn[];
     
-    public getEnumerator(): ILinq.IEnumerator<TIn> {
+    getEnumerator(): ILinq.IEnumerator<TIn> {
         return new ArrayEnumerator((i) => this.storage[i]);
     }
 
-    public aggregate<TOut>(selector: ILinq.ISelector<TIn, TOut>, aggFunc: ILinq.IAggregatorFunction<TOut>): TOut {
+    aggregate<TOut>(selector: ILinq.ISelector<TIn, TOut>, aggFunc: ILinq.IAggregatorFunction<TOut>): TOut {
         return new Iterator(this.getEnumerator()).aggregate(i => new IterationResult(i, false), new AggregationAggregator(selector, aggFunc));
     }
 
-    public iterate<TOut>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, ILinq.IEnumerable<TOut>>): ILinq.IEnumerable<TOut> {
+    iterate<TOut>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, ILinq.IEnumerable<TOut>>): ILinq.IEnumerable<TOut> {
         return new Iterator(this.getEnumerator()).filter(iterator, aggregator);
     }
 
-    public group<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut2>>>): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut2>> {
+    group<TOut, TOut2>(iterator: ILinq.IIteratorKernel<TIn, TOut>, aggregator: ILinq.IAggregator<TOut, ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut2>>>): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut2>> {
         return new Iterator(this.getEnumerator()).filter(iterator, aggregator);
     }
 
-    public filter<TOut>(iterator: ILinq.IIteratorKernel<TIn, TOut>): ILinq.IEnumerable<TOut> {
+    filter<TOut>(iterator: ILinq.IIteratorKernel<TIn, TOut>): ILinq.IEnumerable<TOut> {
         return this.iterate(iterator, new FilterAggregator<TOut>());
     }
 
-    public sort<TOut>(selector: ILinq.ISelector<TIn, TOut>, order: SortOrder): ILinq.IEnumerable<TIn> {
+    sort<TOut>(selector: ILinq.ISelector<TIn, TOut>, order: SortOrder): ILinq.IEnumerable<TIn> {
         return this.iterate(i => new IterationResult(i, false), new SortingAggregator(selector, order));
     }
 
-    public item(index: number): TIn {
+    item(index: number): TIn {
         return this.storage[index];
     }
         
-    public count(predicate?: ILinq.IPredicate<TIn>): number {
+    count(predicate?: ILinq.IPredicate<TIn>): number {
         return predicate ? this.where(predicate).count() : this.storage.length;
     }
     
-    public where(predicate: ILinq.IPredicate<TIn>): ILinq.IEnumerable<TIn> {
+    where(predicate: ILinq.IPredicate<TIn>): ILinq.IEnumerable<TIn> {
         return this.filter(item => {
             if (predicate(item)) {
                 return new IterationResult(item, false);
@@ -199,7 +203,7 @@ export class EnumerableCore<TIn> implements ILinq.IEnumerable<TIn> {
         });
     }
         
-    public firstOrDefault(predicate?: ILinq.IPredicate<TIn>): TIn {
+    firstOrDefault(predicate?: ILinq.IPredicate<TIn>): TIn {
         if (!predicate) {
             return this.item(0);
         }
@@ -211,47 +215,43 @@ export class EnumerableCore<TIn> implements ILinq.IEnumerable<TIn> {
             return new IterationResult(null, false);
         });
 
-        return result.count() > 0 ? result.firstOrDefault() : null; // Default-type?
+        return result.count() > 0 ? result.firstOrDefault() : null;
     }
     
-    public select<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TOut> {
+    select<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TOut> {
         return this.filter(item => {
             return new IterationResult(selector(item), false);
         });
     }
         
-    public orderByAscending<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TIn> {
+    orderByAscending<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TIn> {
         return this.sort(selector, SortOrder.Ascending);
     }
 
-    public orderByDescending<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TIn> {
+    orderByDescending<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<TIn> {
         return this.sort(selector, SortOrder.Descending);
     }
         
-    public aggr<TOut>(selector: ILinq.ISelector<TIn, TOut>, aggFunc: ILinq.IAggregatorFunction<TOut>): TOut {
+    aggr<TOut>(selector: ILinq.ISelector<TIn, TOut>, aggFunc: ILinq.IAggregatorFunction<TOut>): TOut {
         return this.aggregate(selector, (sum, next)=> {
-            if (typeof sum === "undefined") {
-                return next;
-            } else {
-                return aggFunc(sum, next);
-            }
+            return typeof sum === "undefined" ? next : aggFunc(sum, next);
         });
     }
 
-    public sum(selector?: ILinq.ISelector<TIn, number>): number {
+    sum(selector?: ILinq.ISelector<TIn, number>): number {
         if (!selector) selector = i => <number><any>i;
         return this.aggr(selector, (sum, next) => sum + next);
     }
     
-    public groupBy<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut>> {
+    groupBy<TOut>(selector: ILinq.ISelector<TIn, TOut>): ILinq.IEnumerable<ILinq.IGrouping<TIn, TOut>> {
         return this.group(i => new IterationResult(i, false), new GroupingAggregator(selector));
     }
      
-    public toArray(): TIn[] {
+    toArray(): TIn[] {
         return this.storage.slice(0);
     }
         
-    public toList(): List<TIn> {
+    toList(): List<TIn> {
         return new List(this.toArray());
     }
         
@@ -261,24 +261,22 @@ export class EnumerableCore<TIn> implements ILinq.IEnumerable<TIn> {
 }
 
 export class List<TIn> extends EnumerableCore<TIn> implements ILinq.IList<TIn> {
-    public add(item: TIn): void {
+    add(item: TIn) {
         this.storage.push(item);
     }
 
-    public remove(index: number): void {
+    remove(index: number) {
         this.storage.splice(index, 1);
     }
 
-    public each(action: ILinq.IAction<TIn>): void {
+    each(action: ILinq.IAction<TIn>) {
         this.filter(item => {
             action(item);
             return new IterationResult(null, false);
         });
     }
 
-    constructor(arr?: TIn[]) {
-        super(arr);
-    }
+    constructor(arr?: TIn[]) { super(arr); }
 }
 
 class Grouping<TIn, TOut> extends List<TIn> implements ILinq.IGrouping<TIn, TOut> {
@@ -292,14 +290,13 @@ class KeyValuePair<TKey, TVal> implements ILinq.IKeyValuePair<TKey, TVal> {
 }
     
 class ArrayEnumerator<TIn> implements ILinq.IEnumerator<TIn> {
-    private _currentIndex: number;
-    private _accessor: (index: number)=> TIn;
+    private _currentIndex: number = 0;
     
     get current(): TIn {
         return this._accessor(this._currentIndex);
     }
     
-    public next(): TIn {
+    next(): TIn {
         var next = this.current;
     
         if (next) {
@@ -310,12 +307,9 @@ class ArrayEnumerator<TIn> implements ILinq.IEnumerator<TIn> {
         return null;
     }
     
-    public reset(): void {
+    reset() {
         this._currentIndex = 0;
     }
     
-    constructor(accessor: (index: number)=> TIn) {
-        this._currentIndex = 0;
-        this._accessor = accessor;
-    }
+    constructor(private _accessor: (index: number)=> TIn) {}
 }

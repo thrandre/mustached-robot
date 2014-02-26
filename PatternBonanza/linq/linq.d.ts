@@ -25,7 +25,7 @@ declare module ILinq {
     }
 
     interface IAction<TIn> {
-        (item: TIn, i?: number): void;
+        (item: TIn, i?: number);
     }
 
     interface ISelector<TIn, TOut> {
@@ -50,7 +50,7 @@ declare module ILinq {
     }
 
     interface IAggregator<TIn, TOut> {
-        aggregate(item: TIn): void;
+        aggregate(item: TIn);
         getResult(): TOut;
     }
 

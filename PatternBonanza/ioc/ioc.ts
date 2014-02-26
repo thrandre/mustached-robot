@@ -10,7 +10,6 @@ export interface IImplementationRecord {
     classReference: string;
     dependencies: string[];
     scope: number;
-
     prefered: boolean;
     instantiate: () => IDeferred.IPromise<any>;
 }
@@ -26,6 +25,7 @@ interface IManifest {
 export class IInterface<T> {
     interfaceName: string;
     methods: string[];
+    properties: string[];
     enforcer: T;
 }
 
@@ -36,6 +36,14 @@ export enum Scope {
 
 export function setup(settings: IIoCContainerConfiguration): void {
     IoCContainer.current(settings);
+}
+
+export function preload() {
+    return IoCContainer.current().preload();
+}
+
+export function resolveSync<T>(iinterface: IInterface<T>): T {
+    return IoCContainer.current().resolveSync(iinterface);
 }
 
 export function resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
@@ -59,13 +67,13 @@ class InstanceResolver {
 
     constructor(private _manifest: ManifestWrapper, private _deferredFactory: IDeferred.IDeferredFactory) { }
 
-    public loadModule(moduleName: string): IDeferred.IPromise<any> {
+    loadModule(moduleName: string): IDeferred.IPromise<any> {
         var deferred = this._deferredFactory.create();
         require([moduleName], m => deferred.resolve(m));
         return deferred.promise();
     }
 
-    public getInstantiator(module: string, classReference: string, args: any[]): () => any {
+    getInstantiator(module: string, classReference: string, args: any[]): () => any {
         var instantiatorWrapper = (f, a) => {
             var params = [f].concat(a);
             return f.bind.apply(f, params);
@@ -78,11 +86,25 @@ class InstanceResolver {
         };
     }
 
-    public resolveDependencies(interfaceName: string): () => IDeferred.IPromise<any> {
+    resolveDependencies(interfaceName: string): () => IDeferred.IPromise<any> {
         return this.resolveImpl(this.getImpl(interfaceName));
     }
 
-    public resolveImpl(implRecord: IImplementationRecord): () => IDeferred.IPromise<any> {
+
+    getImpl(interfaceName: string): IImplementationRecord {
+        var impls = this._manifest.getInterface(interfaceName);
+
+        if (!impls || impls.length === 0)
+            throw new Error("No implementations registered for " + interfaceName);
+
+        for (var i in impls)
+            if (impls[i].prefered)
+                return impls[i];
+
+        return impls[0];
+    }
+
+    resolveImpl(implRecord: IImplementationRecord): () => IDeferred.IPromise<any> {
         var instantiator = () => {
             var deps: IDeferred.IPromise<any>[] = [];
 
@@ -110,17 +132,11 @@ class InstanceResolver {
         return instantiator;
     }
 
-    public getImpl(interfaceName: string): IImplementationRecord {
-        var impls = this._manifest.getInterface(interfaceName);
-
-        if (!impls || impls.length === 0)
-            throw new Error("No implementations registered for " + interfaceName);
-
-        for (var i in impls)
-            if (impls[i].prefered)
-                return impls[i];
-
-        return impls[0];
+    preload(): IDeferred.IPromise<any> {
+        var promises = [];
+        for (var i in this._manifest.store)
+            promises.push(this.getImpl(i).instantiate());
+        return this._deferredFactory.utils.whenAll(promises);
     }
 }
 
@@ -138,17 +154,32 @@ class IoCContainer {
 
     private _interfaceGraph: ManifestWrapper;
     private _resolver: InstanceResolver;
+    
+    private _preloaded: boolean = false;
 
     constructor(private _settings: IIoCContainerConfiguration) {
         this._interfaceGraph = new ManifestWrapper({});
         this._resolver = new InstanceResolver(this._interfaceGraph, this._settings.deferredFactory);
     }
 
-    public resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
-        return this._resolver.getImpl(iinterface.interfaceName).instantiate();
+    preload(): IDeferred.IPromise<any> {
+        return this._resolver.preload().then(() => this._preloaded = true);
     }
 
-    public resolveAll(iinterfaces: IInterface<any>[]): IDeferred.IPromise<any[]> {
+    resolveSync<T>(iinterface: IInterface<T>): T {
+        if (!this._preloaded)
+            throw new Error("Container not preloaded. Synchronous resolving not possible.");
+        return this.resolve(iinterface).result;
+    }
+
+    resolve<T>(iinterface: IInterface<T>): IDeferred.IPromise<T> {
+        return this._resolver.getImpl(iinterface.interfaceName).instantiate().then(i => {
+            InterfaceChecker.ensureImplements(i, iinterface);
+            return i;
+        });
+    }
+
+    resolveAll(iinterfaces: IInterface<any>[]): IDeferred.IPromise<any[]> {
         var resolvers = [];
         for (var i in iinterfaces) {
             resolvers.push(this._resolver.getImpl(iinterfaces[i].interfaceName).instantiate());
@@ -157,7 +188,7 @@ class IoCContainer {
         return this._settings.deferredFactory.utils.whenAll(resolvers);
     }
 
-    public registerManifest(manifest: IManifest): void {
+    registerManifest(manifest: IManifest): void {
         for (var x in manifest) {
             for (var y in manifest[x]) {
                 var impl = manifest[x][y];
@@ -176,21 +207,46 @@ class IoCContainer {
 class ManifestWrapper {
     constructor(private _store: IManifest) {}
 
-    public isInterfaceDeclared(name: string): boolean {
+    get store(): IManifest {
+        return this._store;
+    }
+
+    isInterfaceDeclared(name: string): boolean {
         return !!this._store[name];
     }
 
-    public getInterface(name: string): IImplementationRecord[] {
+    getInterface(name: string): IImplementationRecord[] {
         return this._store[name];
     }
 
-    public addInterface(name: string): void {
+    addInterface(name: string): void {
         if (this.isInterfaceDeclared(name)) return;
         this._store[name] = [];
     }
 
-    public addImplementation(interfaceName: string, impl: IImplementationRecord): void {
+    addImplementation(interfaceName: string, impl: IImplementationRecord): void {
         this.addInterface(interfaceName);
         this._store[interfaceName].push(impl);
+    }
+}
+
+class InterfaceChecker<T> {
+    static ensureImplements<T>(object: T, targetInterface: IInterface<T>) {
+        var i, len: number;
+        for (i = 0, len = targetInterface.methods.length; i < len; i++) {
+            var method: string = targetInterface.methods[i];
+            if (!object[method] || typeof object[method] !== 'function') {
+                throw new Error("Function InterfaceChecker.ensureImplements: object does not implement the " + targetInterface.interfaceName +
+                    " interface. Method " + method + " was not found");
+            }
+        };
+        for (i = 0, len = targetInterface.properties.length; i < len; i++) {
+            var property: string = targetInterface.properties[i];
+            if (!object[property] || typeof object[property] == 'function') {
+                throw new Error("Function InterfaceChecker.ensureImplements: object does not implement the " + targetInterface.interfaceName +
+                    " interface. Property " + property + " was not found");
+            }
+        };
+
     }
 }

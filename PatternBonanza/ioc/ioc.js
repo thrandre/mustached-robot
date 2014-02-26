@@ -21,6 +21,16 @@ define(["require", "exports"], function(require, exports) {
     }
     exports.setup = setup;
 
+    function preload() {
+        return IoCContainer.current().preload();
+    }
+    exports.preload = preload;
+
+    function resolveSync(iinterface) {
+        return IoCContainer.current().resolveSync(iinterface);
+    }
+    exports.resolveSync = resolveSync;
+
     function resolve(iinterface) {
         return IoCContainer.current().resolve(iinterface);
     }
@@ -75,6 +85,19 @@ define(["require", "exports"], function(require, exports) {
             return this.resolveImpl(this.getImpl(interfaceName));
         };
 
+        InstanceResolver.prototype.getImpl = function (interfaceName) {
+            var impls = this._manifest.getInterface(interfaceName);
+
+            if (!impls || impls.length === 0)
+                throw new Error("No implementations registered for " + interfaceName);
+
+            for (var i in impls)
+                if (impls[i].prefered)
+                    return impls[i];
+
+            return impls[0];
+        };
+
         InstanceResolver.prototype.resolveImpl = function (implRecord) {
             var _this = this;
             var instantiator = function () {
@@ -105,17 +128,11 @@ define(["require", "exports"], function(require, exports) {
             return instantiator;
         };
 
-        InstanceResolver.prototype.getImpl = function (interfaceName) {
-            var impls = this._manifest.getInterface(interfaceName);
-
-            if (!impls || impls.length === 0)
-                throw new Error("No implementations registered for " + interfaceName);
-
-            for (var i in impls)
-                if (impls[i].prefered)
-                    return impls[i];
-
-            return impls[0];
+        InstanceResolver.prototype.preload = function () {
+            var promises = [];
+            for (var i in this._manifest.store)
+                promises.push(this.getImpl(i).instantiate());
+            return this._deferredFactory.utils.whenAll(promises);
         };
         return InstanceResolver;
     })();
@@ -123,6 +140,7 @@ define(["require", "exports"], function(require, exports) {
     var IoCContainer = (function () {
         function IoCContainer(_settings) {
             this._settings = _settings;
+            this._preloaded = false;
             this._interfaceGraph = new ManifestWrapper({});
             this._resolver = new InstanceResolver(this._interfaceGraph, this._settings.deferredFactory);
         }
@@ -133,8 +151,24 @@ define(["require", "exports"], function(require, exports) {
             return config ? (IoCContainer.instance = new IoCContainer(config)) : IoCContainer.instance;
         };
 
+        IoCContainer.prototype.preload = function () {
+            var _this = this;
+            return this._resolver.preload().then(function () {
+                return _this._preloaded = true;
+            });
+        };
+
+        IoCContainer.prototype.resolveSync = function (iinterface) {
+            if (!this._preloaded)
+                throw new Error("Container not preloaded. Synchronous resolving not possible.");
+            return this.resolve(iinterface).result;
+        };
+
         IoCContainer.prototype.resolve = function (iinterface) {
-            return this._resolver.getImpl(iinterface.interfaceName).instantiate();
+            return this._resolver.getImpl(iinterface.interfaceName).instantiate().then(function (i) {
+                InterfaceChecker.ensureImplements(i, iinterface);
+                return i;
+            });
         };
 
         IoCContainer.prototype.resolveAll = function (iinterfaces) {
@@ -168,6 +202,14 @@ define(["require", "exports"], function(require, exports) {
         function ManifestWrapper(_store) {
             this._store = _store;
         }
+        Object.defineProperty(ManifestWrapper.prototype, "store", {
+            get: function () {
+                return this._store;
+            },
+            enumerable: true,
+            configurable: true
+        });
+
         ManifestWrapper.prototype.isInterfaceDeclared = function (name) {
             return !!this._store[name];
         };
@@ -187,6 +229,29 @@ define(["require", "exports"], function(require, exports) {
             this._store[interfaceName].push(impl);
         };
         return ManifestWrapper;
+    })();
+
+    var InterfaceChecker = (function () {
+        function InterfaceChecker() {
+        }
+        InterfaceChecker.ensureImplements = function (object, targetInterface) {
+            var i, len;
+            for (i = 0, len = targetInterface.methods.length; i < len; i++) {
+                var method = targetInterface.methods[i];
+                if (!object[method] || typeof object[method] !== 'function') {
+                    throw new Error("Function InterfaceChecker.ensureImplements: object does not implement the " + targetInterface.interfaceName + " interface. Method " + method + " was not found");
+                }
+            }
+            ;
+            for (i = 0, len = targetInterface.properties.length; i < len; i++) {
+                var property = targetInterface.properties[i];
+                if (!object[property] || typeof object[property] == 'function') {
+                    throw new Error("Function InterfaceChecker.ensureImplements: object does not implement the " + targetInterface.interfaceName + " interface. Property " + property + " was not found");
+                }
+            }
+            ;
+        };
+        return InterfaceChecker;
     })();
 });
 //# sourceMappingURL=ioc.js.map

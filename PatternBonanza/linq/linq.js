@@ -69,12 +69,12 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var AggregationAggregator = (function () {
-        function AggregationAggregator(selector, aggregatorFunction) {
-            this.selector = selector;
-            this.aggregatorFunction = aggregatorFunction;
+        function AggregationAggregator(_selector, _aggregatorFunction) {
+            this._selector = _selector;
+            this._aggregatorFunction = _aggregatorFunction;
         }
         AggregationAggregator.prototype.aggregate = function (item) {
-            this._storage = this.aggregatorFunction(this._storage, this.selector(item));
+            this._storage = this._aggregatorFunction(this._storage, this._selector(item));
         };
 
         AggregationAggregator.prototype.getResult = function () {
@@ -84,12 +84,12 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var GroupingAggregator = (function () {
-        function GroupingAggregator(selector) {
-            this.selector = selector;
+        function GroupingAggregator(_selector) {
+            this._selector = _selector;
             this._storage = [];
         }
         GroupingAggregator.prototype.bucket = function (item) {
-            var key = this.selector(item);
+            var key = this._selector(item);
             var bucket = Enumerable.fromArray(this._storage).firstOrDefault(function (b) {
                 return b.key === key;
             });
@@ -113,13 +113,13 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var SortingAggregator = (function () {
-        function SortingAggregator(selector, sortOrder) {
-            this.selector = selector;
-            this.sortOrder = sortOrder;
+        function SortingAggregator(_selector, _sortOrder) {
+            this._selector = _selector;
+            this._sortOrder = _sortOrder;
             this._storage = [];
         }
         SortingAggregator.prototype.getComparer = function () {
-            return this.sortOrder === 0 /* Ascending */ ? function (i1, i2) {
+            return this._sortOrder === 0 /* Ascending */ ? function (i1, i2) {
                 return i1 > i2;
             } : function (i1, i2) {
                 return i2 > i1;
@@ -132,7 +132,7 @@ define(["require", "exports"], function(require, exports) {
             var pos = 0;
 
             Enumerable.fromArray(this._storage).firstOrDefault(function (item2) {
-                if (comparer(_this.selector(item1), _this.selector(item2))) {
+                if (comparer(_this._selector(item1), _this._selector(item2))) {
                     pos++;
                     return false;
                 }
@@ -153,14 +153,14 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var Iterator = (function () {
-        function Iterator(enumerator) {
-            this.enumerator = enumerator;
+        function Iterator(_enumerator) {
+            this._enumerator = _enumerator;
         }
         Iterator.prototype.iterate = function (iterator, aggregator) {
             var i = 0;
             var currentItem;
 
-            while ((currentItem = this.enumerator.next()) !== null) {
+            while ((currentItem = this._enumerator.next()) !== null) {
                 var iteration = iterator(currentItem, i);
 
                 if (iteration.result !== null) {
@@ -270,11 +270,7 @@ define(["require", "exports"], function(require, exports) {
 
         EnumerableCore.prototype.aggr = function (selector, aggFunc) {
             return this.aggregate(selector, function (sum, next) {
-                if (typeof sum === "undefined") {
-                    return next;
-                } else {
-                    return aggFunc(sum, next);
-                }
+                return typeof sum === "undefined" ? next : aggFunc(sum, next);
             });
         };
 
@@ -346,9 +342,9 @@ define(["require", "exports"], function(require, exports) {
     })();
 
     var ArrayEnumerator = (function () {
-        function ArrayEnumerator(accessor) {
+        function ArrayEnumerator(_accessor) {
+            this._accessor = _accessor;
             this._currentIndex = 0;
-            this._accessor = accessor;
         }
         Object.defineProperty(ArrayEnumerator.prototype, "current", {
             get: function () {
