@@ -6,70 +6,6 @@ var __extends = this.__extends || function (d, b) {
     d.prototype = new __();
 };
 define(["require", "exports", "../observable/observable"], function(require, exports, Observable) {
-    var Vector3 = (function (_super) {
-        __extends(Vector3, _super);
-        function Vector3(_wrapped) {
-            _super.call(this);
-            this._wrapped = _wrapped;
-        }
-        Object.defineProperty(Vector3.prototype, "x", {
-            get: function () {
-                return this._wrapped.x;
-            },
-            set: function (value) {
-                var _this = this;
-                this._wrapped.x = value;
-                this.notifyObservers(function () {
-                    return _this.x;
-                });
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Vector3.prototype, "y", {
-            get: function () {
-                return this._wrapped.y;
-            },
-            set: function (value) {
-                var _this = this;
-                this._wrapped.y = value;
-                this.notifyObservers(function () {
-                    return _this.y;
-                });
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Vector3.prototype, "z", {
-            get: function () {
-                return this._wrapped.z;
-            },
-            set: function (value) {
-                var _this = this;
-                this._wrapped.z = value;
-                this.notifyObservers(function () {
-                    return _this.z;
-                });
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Vector3.prototype.setFrom = function (vector) {
-            this.x = vector.x;
-            this.y = vector.y;
-            this.z = vector.z;
-        };
-
-        Vector3.prototype.asThreeVector = function () {
-            return this._wrapped;
-        };
-        return Vector3;
-    })(Observable.Observable);
-    exports.Vector3 = Vector3;
-
     var Object3D = (function (_super) {
         __extends(Object3D, _super);
         function Object3D(baseObject) {
@@ -119,34 +55,30 @@ define(["require", "exports", "../observable/observable"], function(require, exp
         });
 
         Object3D.prototype.addChild = function (child) {
-            var _this = this;
             this.object.add(child.object);
-            this.notifyObservers(function () {
-                return _this.addChild;
-            });
         };
 
         Object3D.prototype.initObservers = function () {
             var _this = this;
             this._position = new Vector3(this.object.position);
-            this._position.observe(function (_, prop) {
-                return _this.notifyObservers(function () {
+            this._position.observe(function (v, prop) {
+                return _this.notifyObservers(new Observable.PropertyChangedEventArgs(new Observable.PropertyInfo(function () {
                     return _this.position;
-                }, [prop]);
+                }).combine(prop.data)));
             });
 
             this._rotation = new Vector3(this.object.rotation);
-            this._rotation.observe(function (_, prop) {
-                return _this.notifyObservers(function () {
+            this._rotation.observe(function (v, prop) {
+                return _this.notifyObservers(new Observable.PropertyChangedEventArgs(new Observable.PropertyInfo(function () {
                     return _this.rotation;
-                }, [prop]);
+                }).combine(prop.data)));
             });
 
             this._scale = new Vector3(this.object.scale);
-            this._scale.observe(function (_, prop) {
-                return _this.notifyObservers(function () {
+            this._scale.observe(function (v, prop) {
+                return _this.notifyObservers(new Observable.PropertyChangedEventArgs(new Observable.PropertyInfo(function () {
                     return _this.scale;
-                }, [prop]);
+                }).combine(prop.data)));
             });
         };
         return Object3D;
@@ -261,14 +193,25 @@ define(["require", "exports", "../observable/observable"], function(require, exp
 
     var MeshBuilder = (function () {
         function MeshBuilder() {
+            this._shadow = true;
         }
         MeshBuilder.prototype.withMaterial = function (materialBuilder) {
-            this._material = materialBuilder.create().object;
+            this._materialBuilder = materialBuilder;
+            return this;
+        };
+
+        MeshBuilder.prototype.withShadows = function (shadows) {
+            this._shadow = shadows;
             return this;
         };
 
         MeshBuilder.prototype.create = function (geometry) {
-            return new Object3D(new THREE.Mesh(geometry, this._material));
+            var o = new Object3D(new THREE.Mesh(geometry, this._materialBuilder.create()));
+
+            o.object.castShadow = this._shadow;
+            o.object.receiveShadow = this._shadow;
+
+            return o;
         };
         return MeshBuilder;
     })();
@@ -292,8 +235,11 @@ define(["require", "exports", "../observable/observable"], function(require, exp
         };
 
         CubeBuilder.prototype.withMaterial = function (materialBuilder) {
-            _super.prototype.withMaterial.call(this, materialBuilder);
-            return this;
+            return _super.prototype.withMaterial.call(this, materialBuilder);
+        };
+
+        CubeBuilder.prototype.withShadows = function (shadows) {
+            return _super.prototype.withShadows.call(this, shadows);
         };
 
         CubeBuilder.prototype.create = function () {
@@ -303,37 +249,65 @@ define(["require", "exports", "../observable/observable"], function(require, exp
     })(MeshBuilder);
     exports.CubeBuilder = CubeBuilder;
 
-    var BasicMaterialBuilder = (function () {
-        function BasicMaterialBuilder() {
-            this._color = 0xffffff;
-            this._opacity = 1;
-            this._transparent = false;
+    var MaterialBuilder = (function () {
+        function MaterialBuilder() {
+            this.color = 0xffffff;
+            this.opacity = 1;
+            this.transparent = false;
         }
-        BasicMaterialBuilder.prototype.withOpacity = function (opacity) {
-            this._opacity = opacity;
+        MaterialBuilder.prototype.withOpacity = function (opacity) {
+            this.opacity = opacity;
             return this;
         };
 
-        BasicMaterialBuilder.prototype.withTransparency = function (transparency) {
-            this._transparent = transparency;
+        MaterialBuilder.prototype.withTransparency = function (transparency) {
+            this.transparent = transparency;
             return this;
         };
 
-        BasicMaterialBuilder.prototype.withColor = function (color) {
-            this._color = color;
+        MaterialBuilder.prototype.withColor = function (color) {
+            this.color = color;
             return this;
         };
 
+        MaterialBuilder.prototype.create = function () {
+            throw new Error("Abstract base class. Use concrete implementation.");
+        };
+        return MaterialBuilder;
+    })();
+    exports.MaterialBuilder = MaterialBuilder;
+
+    var BasicMaterialBuilder = (function (_super) {
+        __extends(BasicMaterialBuilder, _super);
+        function BasicMaterialBuilder() {
+            _super.apply(this, arguments);
+        }
         BasicMaterialBuilder.prototype.create = function () {
             return new Material(new THREE.MeshBasicMaterial({
-                opacity: this._opacity,
-                transparent: this._transparent,
-                color: this._color
+                opacity: this.opacity,
+                transparent: this.transparent,
+                color: this.color
             }));
         };
         return BasicMaterialBuilder;
-    })();
+    })(MaterialBuilder);
     exports.BasicMaterialBuilder = BasicMaterialBuilder;
+
+    var LambertMaterialBuilder = (function (_super) {
+        __extends(LambertMaterialBuilder, _super);
+        function LambertMaterialBuilder() {
+            _super.apply(this, arguments);
+        }
+        LambertMaterialBuilder.prototype.create = function () {
+            return new Material(new THREE.MeshLambertMaterial({
+                opacity: this.opacity,
+                transparent: this.transparent,
+                color: this.color
+            }));
+        };
+        return LambertMaterialBuilder;
+    })(MaterialBuilder);
+    exports.LambertMaterialBuilder = LambertMaterialBuilder;
 
     var CameraBuilder = (function () {
         function CameraBuilder() {

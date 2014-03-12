@@ -26,14 +26,30 @@
     <Content Include="web.config" />
   </ItemGroup>
   <ItemGroup>
-    <TypeScriptCompile Include="adapter3d\object3d.ts" />
+    <TypeScriptCompile Include="d3st\builders\basicMaterialBuilder.ts" />
+    <TypeScriptCompile Include="d3st\builders\cameraBuilder.ts" />
+    <TypeScriptCompile Include="d3st\builders\cubeBuilder.ts" />
+    <TypeScriptCompile Include="d3st\builders\lambertMaterialBuilder.ts" />
+    <TypeScriptCompile Include="d3st\builders\materialBuilder.ts" />
+    <TypeScriptCompile Include="d3st\builders\meshBuilder.ts" />
+    <TypeScriptCompile Include="d3st\objects\animateableObject.ts" />
+    <TypeScriptCompile Include="d3st\objects\camera.ts" />
+    <TypeScriptCompile Include="d3st\objects\material.ts" />
+    <TypeScriptCompile Include="d3st\objects\object3d.ts" />
+    <TypeScriptCompile Include="d3st\objects\renderer.ts" />
+    <TypeScriptCompile Include="d3st\objects\scene.ts" />
+    <TypeScriptCompile Include="d3st\objects\vector3.ts" />
+    <TypeScriptCompile Include="d3st\objects\webGlRenderer.ts" />
+    <TypeScriptCompile Include="d3st\wrappers\wrappers.ts" />
     <TypeScriptCompile Include="app.ts" />
     <TypeScriptCompile Include="deferred\deferred.d.ts" />
+    <TypeScriptCompile Include="hyp\model.ts" />
     <TypeScriptCompile Include="ioc\ioc.ts" />
     <TypeScriptCompile Include="linq\linq.d.ts" />
     <TypeScriptCompile Include="linq\linq.ts" />
     <TypeScriptCompile Include="deferred\deferred.ts" />
     <TypeScriptCompile Include="locators.ts" />
+    <TypeScriptCompile Include="observable\observable.d.ts" />
     <TypeScriptCompile Include="observable\observable.ts" />
     <TypeScriptCompile Include="require.d.ts" />
     <TypeScriptCompile Include="typings\jquery.d.ts" />
@@ -78,8 +94,9 @@
     <TypeScriptTarget>ES5</TypeScriptTarget>
     <TypeScriptRemoveComments>false</TypeScriptRemoveComments>
     <TypeScriptSourceMap>true</TypeScriptSourceMap>
-    <TypeScriptModuleKind>amd</TypeScriptModuleKind>
+    <TypeScriptModuleKind>commonjs</TypeScriptModuleKind>
     <TypeScriptGeneratesDeclarations>False</TypeScriptGeneratesDeclarations>
+    <TypeScriptOutFile>app.js</TypeScriptOutFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <TypeScriptTarget>ES5</TypeScriptTarget>

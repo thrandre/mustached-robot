@@ -1,94 +1,144 @@
-export interface IPropertyInfo {
-    path: string;
-    pathSegment(i: number): string;
-    value: any;
-}
-
-export class PropertyInfo implements IPropertyInfo {
-    private _steps: string[] = [];
-
-    get value(): any {
-        var accessor = this.root;
-        for (var i in this._steps)
-            accessor = accessor[this._steps[i]];
-
-        return accessor;
+module Observable {
+    export class Property<T> {
+        constructor(private property: IProperty<T>, private getter: IGetter<T>) {}
     }
 
-    get path(): string {
-        return this._steps.join(".");
+    export interface IGetter<T> {
+        (): T;
     }
 
-    constructor(private root: any) { }
-
-    private getLastTraversalStep(property: IProperty): string {
-        var segments = property.toString()
-            .replace(/\n|\r|\t|\s{2,}/g, "")
-            .match(/function \(\) \{return _this\.(.*?);}/)[1]
-            .split(".");
-
-        return segments[segments.length - 1];
+    export interface IEventArgs {
+        event: Event;
+        data: any;
     }
 
-    pathSegment(i: number): string {
-        return this._steps[i];
+    export interface IPropertyChangedEventArgs<T> extends IEventArgs {
+        data: IPropertyInfo<T>;
     }
 
-    addStep(property: IProperty): PropertyInfo {
-        this._steps.push(this.getLastTraversalStep(property));
-        return this;
+    export interface IPropertyInfo<T> {
+        segments: string[];
+        path: string;
+        getValue(target: any): any;
     }
 
-    combine(parts: IPropertyInfo[]): PropertyInfo {
-        for (var i in parts)
-            this._steps.push(parts[i].path);
-
-        return this;
-    }
-}
-
-export class Observable {
-    private _observerContainer: ObserverContainer;
-
-    notifyObservers(property: IProperty, nestedProperties?: IPropertyInfo[]) {
-        nestedProperties = nestedProperties || [];
-        this._observerContainer.notify(this,
-            new PropertyInfo(this).addStep(property).combine(nestedProperties));
+    export interface ICollectionChangedInfo<T> {
+        type: CollectionChangeType;
+        item: T;
     }
 
-    observe(observer: IObserver): Observable {
-        this._observerContainer.add(observer);
-        return this;
+    export enum Event {
+        PropertyChanged,
+        CollectionChanged
     }
 
-    constructor() {
-        this._observerContainer = new ObserverContainer();
-    }
-}
-
-export interface IProperty {
-    (): any;
-}
-
-export interface IObserver {
-    (observable: Observable, property: IPropertyInfo);
-}
-
-class ObserverContainer {
-    private _observers: IObserver[] = [];
-
-    add(observer: IObserver) {
-        var idx = this._observers.indexOf(observer);
-        if(idx < 0) this._observers.push(observer);
+    export enum CollectionChangeType {
+        Add,
+        Remove
     }
 
-    remove(observer: IObserver) {
-        var idx = this._observers.indexOf(observer);
-        if (idx > -1) this._observers.splice(idx, 1);
+    export class PropertyInfo<T> implements IPropertyInfo<T> {
+        segments: string[] = [];
+
+        get path(): string {
+            return this.segments.join(".");
+        }
+
+        constructor(property: IProperty<T>) {
+            this.segments = this.getPropertySegments(property);
+        }
+
+        private getPropertySegments(property: IProperty<T>): string[] {
+            return property.toString()
+                .replace(/\n|\r|\t|\s{2,}/g, "")
+                .match(/function \(\) \{return _this\.(.*?);}/)[1]
+                .split(".");
+        }
+
+        getValue(target: any): T {
+            var accessor = target;
+            for (var i in this.segments) {
+                accessor = accessor[this.segments[i]];
+            }
+            return accessor;
+        }
+
+        combine(...parts: IPropertyInfo<T>[]): PropertyInfo<T> {
+            for (var i in parts) {
+                this.segments = this.segments.concat(parts[i].segments);
+            }
+            return this;
+        }
+
     }
 
-    notify(observable: Observable, property: IPropertyInfo) {
-        for (var i in this._observers)
-            this._observers[i](observable, property);
+    export class CollectionChangedInfo<T> implements ICollectionChangedInfo<T> {
+
+        constructor(public type: CollectionChangeType, public item: T) {}
+
+    }
+
+    export class EventArgs implements IEventArgs {
+
+        constructor(public event: Event, public data: any) {}
+
+    }
+
+    export class PropertyChangedEventArgs<T> extends EventArgs implements IPropertyChangedEventArgs<T> {
+
+        constructor(data: IPropertyInfo<T>) { super(Event.PropertyChanged, data); }
+
+    }
+
+    export class CollectionChangedEventArgs<T> extends EventArgs {
+
+        constructor(data: ICollectionChangedInfo<T>) { super(Event.CollectionChanged, data); }
+
+    }
+
+    export class Observable {
+        private _observerContainer: ObserverContainer;
+
+        notifyObservers(eventArgs: EventArgs) {
+            this._observerContainer.notify(this, eventArgs);
+        }
+
+        observe(observer: IObserver): Observable {
+            this._observerContainer.add(observer);
+            return this;
+        }
+
+        constructor() {
+            this._observerContainer = new ObserverContainer();
+        }
+
+    }
+
+    export interface IProperty<T> {
+        (): T;
+    }
+
+    export interface IObserver {
+        (observable: Observable, eventArgs: EventArgs);
+    }
+
+    class ObserverContainer {
+        private _observers: IObserver[] = [];
+
+        add(observer: IObserver) {
+            var idx = this._observers.indexOf(observer);
+            if (idx < 0) this._observers.push(observer);
+        }
+
+        remove(observer: IObserver) {
+            var idx = this._observers.indexOf(observer);
+            if (idx > -1) this._observers.splice(idx, 1);
+        }
+
+        notify(observable: Observable, eventArgs: EventArgs) {
+            for (var i in this._observers)
+                this._observers[i](observable, eventArgs);
+        }
+
     }
 }

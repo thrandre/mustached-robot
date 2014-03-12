@@ -54,7 +54,7 @@ declare module ILinq {
         getResult(): TOut;
     }
 
-    interface IList<TIn> {
+    interface IList<TIn> extends IEnumerable<TIn> {
         add: (item: TIn) => void;
         item: (index: number) => TIn;
         remove: (index: number) => void;

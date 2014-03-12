@@ -4,17 +4,17 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-define(["require", "exports", "ioc/ioc"], function(require, exports, IoC) {
-    var IIEnumerableFactory = (function (_super) {
-        __extends(IIEnumerableFactory, _super);
-        function IIEnumerableFactory() {
-            _super.apply(this, arguments);
-            this.interfaceName = "IEnumerableFactory";
-            this.methods = [];
-            this.properties = [];
-        }
-        return IIEnumerableFactory;
-    })(IoC.IInterface);
-    exports.IIEnumerableFactory = IIEnumerableFactory;
-});
+var IoC = require("ioc/ioc");
+
+var IIEnumerableFactory = (function (_super) {
+    __extends(IIEnumerableFactory, _super);
+    function IIEnumerableFactory() {
+        _super.apply(this, arguments);
+        this.interfaceName = "IEnumerableFactory";
+        this.methods = [];
+        this.properties = [];
+    }
+    return IIEnumerableFactory;
+})(IoC.IInterface);
+exports.IIEnumerableFactory = IIEnumerableFactory;
 //# sourceMappingURL=locators.js.map
